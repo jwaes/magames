@@ -5,8 +5,34 @@
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
   import { NUM_TABLEAU, canMove, type Source, type Dest } from '../engine/solitaire'
   import Card from './Card.svelte'
+  import { crossfade } from 'svelte/transition'
+  import { cubicOut } from 'svelte/easing'
 
   let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
+
+  // Swift glide of a card from its old pile to its new one on tap-to-move.
+  // Keyed by card id: the card leaving a pile (out:send) and the card arriving
+  // in another (in:receive) are matched and the arriving one animates from the
+  // old position. Cards that don't change pile don't animate. Honors reduced motion.
+  const reduceMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [send, receive] = crossfade({
+    duration: reduceMotion ? 0 : 190,
+    easing: cubicOut,
+    // No counterpart (initial deal, drawing to the waste) → appear instantly.
+    fallback: () => ({ duration: 0 })
+  })
+
+  // Lift a card above the rest of the board while it is in flight. Set inline
+  // (not via a CSS class) so Svelte's scoped-CSS pruning can't strip it.
+  function raise(e: { target: EventTarget | null }) {
+    const el = e.target as HTMLElement | null
+    if (el) el.style.zIndex = '200'
+  }
+  function lower(e: { target: EventTarget | null }) {
+    const el = e.target as HTMLElement | null
+    if (el) el.style.zIndex = ''
+  }
 
   // Vertical overlap of cards in a tableau column, in units of card height.
   const OFFSET_DOWN = 0.17
@@ -218,7 +244,22 @@
       <div class="slot pile" data-testid="waste">
         {#if game.state.waste.length}
           {@const top = game.state.waste[game.state.waste.length - 1]}
-          <Card card={top} hinted={game.hint?.type === 'waste'} onpointerdown={(e) => startPress(e, { type: 'waste' })} />
+          {#key top.id}
+            <div
+              class="fly"
+              in:receive={{ key: top.id }}
+              out:send={{ key: top.id }}
+              onintrostart={raise}
+              onintroend={lower}
+              onoutrostart={raise}
+            >
+              <Card
+                card={top}
+                hinted={game.hint?.type === 'waste'}
+                onpointerdown={(e) => startPress(e, { type: 'waste' })}
+              />
+            </div>
+          {/key}
         {:else}
           <div class="empty"></div>
         {/if}
@@ -230,7 +271,19 @@
       {#each game.state.foundations as foundation, fi}
         <div class="slot pile" data-drop-foundation={fi} class:legal={legalTargets.has(`f${fi}`)}>
           {#if foundation.length}
-            <Card card={foundation[foundation.length - 1]} onpick={() => game.tap({ type: 'foundation', pile: fi })} />
+            {@const ftop = foundation[foundation.length - 1]}
+            {#key ftop.id}
+              <div
+                class="fly"
+                in:receive={{ key: ftop.id }}
+                out:send={{ key: ftop.id }}
+                onintrostart={raise}
+                onintroend={lower}
+                onoutrostart={raise}
+              >
+                <Card card={ftop} onpick={() => game.tap({ type: 'foundation', pile: fi })} />
+              </div>
+            {/key}
           {:else}
             <div class="empty suit">{SUIT_SYMBOL[SUITS[fi]]}</div>
           {/if}
@@ -253,7 +306,15 @@
             <div class="empty"></div>
           {/if}
           {#each l.items as placed (placed.card.id)}
-            <div class="stacked" style="top: calc(var(--card-h) * {placed.top})">
+            <div
+              class="stacked"
+              style="top: calc(var(--card-h) * {placed.top})"
+              in:receive={{ key: placed.card.id }}
+              out:send={{ key: placed.card.id }}
+              onintrostart={raise}
+              onintroend={lower}
+              onoutrostart={raise}
+            >
               <Card
                 card={placed.card}
                 hinted={hintedTableau(pile, placed.index)}
@@ -410,6 +471,11 @@
     left: 0;
     width: var(--card-w);
     height: var(--card-h);
+  }
+  /* Wrapper that carries the fly (crossfade) transition for single-card piles. */
+  .fly {
+    position: absolute;
+    inset: 0;
   }
 
   .empty {
