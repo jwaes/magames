@@ -267,7 +267,7 @@
       {#each drag.cards as c, i (c.id)}
         <div
           class="ghost"
-          style="left: {drag.x - drag.grabX}px; top: {drag.y - drag.grabY + i * 0.32 * drag.cardH}px; width: {drag.cardW}px; height: {drag.cardH}px"
+          style="--card-w: {drag.cardW}px; --card-h: {drag.cardH}px; left: {drag.x - drag.grabX}px; top: {drag.y - drag.grabY + i * 0.32 * drag.cardH}px; width: {drag.cardW}px; height: {drag.cardH}px"
         >
           <Card card={c} />
         </div>
