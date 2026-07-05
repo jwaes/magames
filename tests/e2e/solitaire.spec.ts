@@ -78,3 +78,13 @@ test('the board fits the viewport with no horizontal overflow (both orientations
   )
   expect(overflow).toBeLessThanOrEqual(1)
 })
+
+test('settings: switching to drag mode persists across reload', async ({ page }) => {
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: /Slepen/ }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+
+  await page.reload()
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await expect(page.getByRole('button', { name: /Slepen/ })).toHaveClass(/selected/)
+})

@@ -1,6 +1,9 @@
 <script lang="ts">
   import { settings } from '../stores/settings.svelte'
   import { game } from '../stores/game.svelte'
+  import { stats } from '../stores/stats.svelte'
+
+  let confirmingReset = $state(false)
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -43,10 +46,42 @@
     </section>
 
     <section>
+      <h3>Bewegingsstijl</h3>
+      <p class="hint">Hoe je kaarten verplaatst.</p>
+      <div class="choices">
+        <button class:selected={settings.movement === 'tap'} onclick={() => settings.setMovement('tap')}>
+          <strong>Tikken</strong><span>Eenvoudig</span>
+        </button>
+        <button class:selected={settings.movement === 'drag'} onclick={() => settings.setMovement('drag')}>
+          <strong>Slepen</strong><span>Versleep de kaart</span>
+        </button>
+      </div>
+    </section>
+
+    <section>
       <h3>Geluid</h3>
       <button class="toggle" class:on={settings.sound} onclick={() => settings.toggleSound()}>
         <span>{settings.sound ? '🔊 Aan' : '🔇 Uit'}</span>
       </button>
+    </section>
+
+    <section>
+      <h3>Statistieken</h3>
+      {#if confirmingReset}
+        <p class="hint">Weet je het zeker? Dit wist alle scores.</p>
+        <div class="choices">
+          <button onclick={() => (confirmingReset = false)}><strong>Nee</strong></button>
+          <button
+            class="danger"
+            onclick={() => {
+              stats.reset()
+              confirmingReset = false
+            }}><strong>Ja, wissen</strong></button
+          >
+        </div>
+      {:else}
+        <button class="toggle" onclick={() => (confirmingReset = true)}><span>🗑️ Wis statistieken</span></button>
+      {/if}
     </section>
 
     <div class="actions">
@@ -127,6 +162,11 @@
   .choices button.selected {
     border-color: #0b6b3a;
     background: #e8f6ee;
+  }
+  .choices button.danger {
+    border-color: #c81e28;
+    background: #fdecec;
+    color: #c81e28;
   }
   .toggle.on {
     border-color: #0b6b3a;
