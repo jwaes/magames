@@ -1,5 +1,5 @@
 // The multi-game shell: add new games here and they appear on the home screen.
-// Only Solitaire is playable today; the rest are placeholders for the future.
+// Solitaire and Match-3 are playable; the rest are placeholders for the future.
 
 export interface GameEntry {
   id: string
@@ -11,6 +11,6 @@ export interface GameEntry {
 
 export const GAMES: GameEntry[] = [
   { id: 'solitaire', name: 'Patience', subtitle: 'Klassiek kaartspel', icon: '🂡', available: true },
-  { id: 'spider', name: 'Spider', subtitle: 'Twee kleuren', icon: '🕷️', available: false },
+  { id: 'match3', name: 'Drie op een rij', subtitle: 'Kleuren matchen', icon: '🍬', available: true },
   { id: 'freecell', name: 'FreeCell', subtitle: 'Denkspel', icon: '🃏', available: false }
 ]
