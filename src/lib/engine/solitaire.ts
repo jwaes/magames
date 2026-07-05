@@ -260,3 +260,47 @@ export function nextAutoFinishMove(state: GameState): { src: Source; dest: Dest 
   }
   return null
 }
+
+/** Can this single card be placed anywhere right now (foundation or tableau)? */
+function placeableAnywhere(state: GameState, card: Card): boolean {
+  const fIdx = SUITS.indexOf(card.suit)
+  if (canPlaceOnFoundation(card, state.foundations[fIdx])) return true
+  for (let q = 0; q < NUM_TABLEAU; q++) {
+    if (canPlaceOnTableau(card, state.tableau[q])) return true
+  }
+  return false
+}
+
+/**
+ * True only when the game is genuinely dead: no legal board move exists AND no
+ * card still in the stock/waste could be played (the board can never change, so
+ * drawing can never help). Never a false positive — if any legal move exists
+ * (even a pointless one) this returns false.
+ */
+export function isStuck(state: GameState): boolean {
+  if (isWon(state)) return false
+
+  const wasteTop = state.waste[state.waste.length - 1]
+  if (wasteTop && placeableAnywhere(state, wasteTop)) return false
+
+  for (let p = 0; p < NUM_TABLEAU; p++) {
+    const col = state.tableau[p]
+    for (let i = 0; i < col.length; i++) {
+      if (!col[i].faceUp) continue
+      const src: Source = { type: 'tableau', pile: p, index: i }
+      if (i === col.length - 1) {
+        const fIdx = SUITS.indexOf(col[i].suit)
+        if (canMove(state, src, { type: 'foundation', pile: fIdx })) return false
+      }
+      for (let q = 0; q < NUM_TABLEAU; q++) {
+        if (q !== p && canMove(state, src, { type: 'tableau', pile: q })) return false
+      }
+    }
+  }
+
+  for (const c of [...state.stock, ...state.waste]) {
+    if (placeableAnywhere(state, c)) return false
+  }
+
+  return true
+}

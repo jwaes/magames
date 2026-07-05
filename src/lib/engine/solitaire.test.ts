@@ -11,6 +11,7 @@ import {
   canPlaceOnTableau,
   isValidRun,
   isWon,
+  isStuck,
   nextAutoFinishMove,
   NUM_TABLEAU
 } from './solitaire'
@@ -191,5 +192,39 @@ describe('winning', () => {
     const step = nextAutoFinishMove(s)
     expect(step).not.toBeNull()
     expect(step!.dest).toEqual({ type: 'foundation', pile: SUITS.indexOf('hearts') })
+  })
+})
+
+describe('isStuck', () => {
+  it('is false when a tableau move exists', () => {
+    const s = emptyState()
+    s.tableau[0] = [card('hearts', 3)] // red 3
+    s.tableau[1] = [card('spades', 4)] // black 4 — red 3 can land here
+    expect(isStuck(s)).toBe(false)
+  })
+
+  it('is false when a stock card could still be played', () => {
+    const s = emptyState()
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    s.stock = [card('clubs', 1, false)] // an Ace can always go to its foundation
+    expect(isStuck(s)).toBe(false)
+  })
+
+  it('is true when nothing can move and nothing is playable', () => {
+    const s = emptyState()
+    // Two low cards that cannot stack on each other, no aces, no empty-fillable kings,
+    // empty stock/waste, empty foundations.
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    expect(isStuck(s)).toBe(true)
+  })
+
+  it('is false for a won game', () => {
+    const s = emptyState()
+    s.foundations = SUITS.map((suit) =>
+      Array.from({ length: 13 }, (_, i) => card(suit, (i + 1) as Rank))
+    )
+    expect(isStuck(s)).toBe(false)
   })
 })
