@@ -3,9 +3,11 @@
   import Solitaire from './lib/components/Solitaire.svelte'
   import SettingsModal from './lib/components/SettingsModal.svelte'
   import StatsScreen from './lib/components/StatsScreen.svelte'
+  import Match3 from './lib/components/match3/Match3.svelte'
   import { game } from './lib/stores/game.svelte'
+  import { match3 } from './lib/stores/match3.svelte'
 
-  type Screen = 'home' | 'solitaire' | 'stats'
+  type Screen = 'home' | 'solitaire' | 'stats' | 'match3'
   let screen = $state<Screen>('home')
   let showSettings = $state(false)
 
@@ -23,6 +25,9 @@
     if (id === 'solitaire') {
       game.newGame(undefined, seedFromUrl())
       screen = 'solitaire'
+    } else if (id === 'match3') {
+      match3.newGame(seedFromUrl())
+      screen = 'match3'
     }
   }
 
@@ -36,6 +41,8 @@
   <Home onplay={play} onsettings={() => (showSettings = true)} onstats={() => (screen = 'stats')} />
 {:else if screen === 'stats'}
   <StatsScreen onclose={() => (screen = 'home')} />
+{:else if screen === 'match3'}
+  <Match3 onhome={() => (screen = 'home')} onsettings={() => (showSettings = true)} />
 {:else}
   <Solitaire onhome={goHome} onsettings={() => (showSettings = true)} />
 {/if}

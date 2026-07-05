@@ -4,10 +4,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/')
 })
 
-test('home screen shows Patience playable and future games disabled', async ({ page }) => {
+test('home screen shows Patience and Match-3 playable and future games disabled', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Kaartspellen' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Patience/ })).toBeEnabled()
-  await expect(page.getByRole('button', { name: /Spider/ })).toBeDisabled()
+  await expect(page.getByRole('button', { name: /Drie op een rij/ })).toBeEnabled()
   await expect(page.getByRole('button', { name: /FreeCell/ })).toBeDisabled()
 })
 
