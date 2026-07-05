@@ -1,0 +1,53 @@
+/* Professionally-designed suit glyphs (Noto Sans Symbols 2, OFL), subset to just
+   the four suits and bundled so ♥♦♣♠ render IDENTICALLY on every device — no
+   dependence on the OS font, where club/spade often look too alike. The
+   unicode-range scopes this font to the suit codepoints only; all other text
+   falls through to the system font below. */
+@font-face {
+  font-family: 'CardSuits';
+  src: url('./lib/fonts/suits.woff2') format('woff2');
+  font-display: block;
+  unicode-range: U+2660-2667;
+}
+
+:root {
+  font-family:
+    'CardSuits',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overscroll-behavior: none;
+  /* Respect notches / rounded corners on iPad and modern tablets. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+body {
+  /* Prevent the whole page from scrolling/bouncing — the board manages itself. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+}
