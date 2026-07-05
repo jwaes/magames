@@ -47,6 +47,10 @@
   function isExploding(r: number, c: number): boolean {
     return match3.exploding.some((p) => p.r === r && p.c === c)
   }
+  function isHinted(r: number, c: number): boolean {
+    const h = match3.hint
+    return h !== null && ((h.a.r === r && h.a.c === c) || (h.b.r === r && h.b.c === c))
+  }
 
   // New tiles slide in from just above their cell.
   function drop(_node: Element, { duration = fallMs }: { duration?: number } = {}) {
@@ -64,6 +68,7 @@
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
     <button class="tool" onclick={() => match3.newGame()} aria-label="Nieuw spel">🔄<span>Nieuw</span></button>
+    <button class="tool" onclick={() => match3.showHint()} aria-label="Hint">💡<span>Hint</span></button>
     <div class="spacer"></div>
     <div class="stat"><small>Score</small><strong>{match3.score}</strong></div>
     <div class="stat"><small>Beste</small><strong>{match3.best}</strong></div>
@@ -95,6 +100,7 @@
           <div
             class="tile-slot"
             class:exploding={isExploding(p.r, p.c)}
+            class:hinted={isHinted(p.r, p.c)}
             style="left: calc(var(--cell) * {p.c}); top: calc(var(--cell) * {p.r}); width: var(--cell); height: var(--cell)"
             animate:flip={{ duration: reduce ? 0 : fallMs, easing: cubicOut }}
             in:drop
@@ -217,6 +223,27 @@
   .tile-slot.exploding {
     animation: burst var(--burst, 200ms) ease-out forwards;
     z-index: 5;
+  }
+  .tile-slot.hinted {
+    z-index: 4;
+  }
+  .tile-slot.hinted :global(.tile) {
+    animation: hintpulse 0.85s ease-in-out infinite;
+  }
+  @keyframes hintpulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 214, 10, 0);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgba(255, 214, 10, 0.9);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile-slot.hinted :global(.tile) {
+      animation: none;
+      box-shadow: 0 0 0 5px rgba(255, 214, 10, 0.9);
+    }
   }
   @keyframes burst {
     0% {

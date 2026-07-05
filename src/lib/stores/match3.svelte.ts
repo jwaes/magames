@@ -1,6 +1,6 @@
 import { type Board, type Pos } from '../games/match3/engine/types'
 import { fillBoard, resolveSteps, reshuffle } from '../games/match3/engine/resolve'
-import { isLegalSwap, swappedBoard, hasAnyMove } from '../games/match3/engine/match'
+import { isLegalSwap, swappedBoard, hasAnyMove, findHint } from '../games/match3/engine/match'
 import { areAdjacent } from '../games/match3/engine/board'
 import { mulberry32 } from '../games/match3/engine/rng'
 import { play, playPop } from '../sound/sfx'
@@ -72,7 +72,10 @@ class Match3 {
   exploding = $state<Pos[]>([])
   /** Longest run in the current cascade (>=4 flashes a bigger effect); 0 = none. */
   bigEffect = $state(0)
+  /** The two tiles the Hint button is suggesting (pulsing), or null. */
+  hint = $state<{ a: Pos; b: Pos } | null>(null)
   #animating = false
+  #hintTimer: ReturnType<typeof setTimeout> | null = null
 
   /** How much every animation duration is scaled by the current speed. */
   get animMult(): number {
@@ -116,8 +119,25 @@ class Match3 {
     this.selected = null
     this.exploding = []
     this.bigEffect = 0
+    this.#clearHint()
     this.#animating = false
     play('deal', this.sound)
+  }
+
+  #clearHint(): void {
+    if (this.#hintTimer) clearTimeout(this.#hintTimer)
+    this.#hintTimer = null
+    this.hint = null
+  }
+
+  /** Highlight a possible move; clears itself after a few seconds. */
+  showHint(): void {
+    if (this.#animating) return
+    this.#clearHint()
+    const h = findHint(this.board)
+    this.hint = h
+    play(h ? 'flip' : 'invalid', this.sound)
+    if (h) this.#hintTimer = setTimeout(() => (this.hint = null), 2500)
   }
 
   /**
@@ -183,6 +203,7 @@ class Match3 {
 
   select(p: Pos): void {
     if (this.#animating) return
+    this.#clearHint()
     const cur = this.selected
     if (cur === null) {
       this.selected = p
