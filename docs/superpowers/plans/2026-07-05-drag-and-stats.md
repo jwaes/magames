@@ -700,61 +700,43 @@ Create `src/lib/stores/game.lifecycle.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest'
+import { game } from './game.svelte'
+import { stats } from './stats.svelte'
 
+// IMPORTANT: import the CANONICAL singletons (no ?query). The game store imports
+// the same `stats` singleton, so mutations by the game are visible on `stats` here.
+// Reset both in-memory singletons + storage before each test for isolation.
 describe('game lifecycle → stats', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    stats.reset()
+  })
 
-  it('marks a day as played on the first move (drawStock)', async () => {
-    const { game } = await import('./game.svelte?g1')
-    const { stats } = await import('./stats.svelte?g1')
+  it('marks a day as played on the first move (drawStock)', () => {
     game.newGame(1, 1)
     expect(stats.data.currentDayStreak).toBe(0)
     game.drawStock() // first move
     expect(stats.data.currentDayStreak).toBe(1)
   })
 
-  it('records an abandon (time only) when leaving an unfinished game', async () => {
-    const { game } = await import('./game.svelte?g2')
-    const { stats } = await import('./stats.svelte?g2')
+  it('records an abandon (time only) when leaving an unfinished game', () => {
     game.newGame(1, 1)
     game.drawStock()
     game.leave()
     expect(stats.data.gamesWon).toBe(0)
     expect(stats.data.gamesLost).toBe(0)
-    // currentDayStreak was set by the first move
-    expect(stats.data.currentDayStreak).toBe(1)
+    expect(stats.data.currentDayStreak).toBe(1) // set by the first move
   })
 
-  it('exposes stuck and records a loss only on abandon of a dead game', async () => {
-    const { game } = await import('./game.svelte?g3')
-    const { stats } = await import('./stats.svelte?g3')
+  it('exposes a boolean stuck flag', () => {
     game.newGame(1, 1)
-    game.drawStock()
-    // Force a dead position directly (two low, non-stackable cards, nothing else).
-    game.state = {
-      stock: [],
-      waste: [],
-      foundations: game.state.foundations.map(() => []),
-      tableau: [
-        [{ id: 'spades-2', suit: 'spades', rank: 2, faceUp: true }],
-        [{ id: 'hearts-2', suit: 'hearts', rank: 2, faceUp: true }],
-        [], [], [], [], []
-      ],
-      drawCount: 1,
-      moves: game.state.moves
-    }
-    // A move through #commit re-evaluates stuck; simplest is to trigger the same
-    // path drawStock uses. Since stock is empty, call the public recompute via undo+redo
-    // is awkward; instead assert leave() records a loss when we mark it stuck by drawing.
-    game.drawStock() // stock empty & waste empty -> plays 'invalid', does not commit
-    // stuck is evaluated on commit; emulate by re-dealing a known stuck seed is hard,
-    // so drive it through a real move:
     expect(typeof game.stuck).toBe('boolean')
+    expect(game.stuck).toBe(false)
   })
 })
 ```
 
-Note: the third test is intentionally light because forcing a mid-game stuck through only public methods is fragile. `isStuck` itself is fully unit-tested in Task 1, and the stuck **UI** path is covered in Task 8. Keep the third test asserting only that `game.stuck` exists and is boolean; do not over-fit it.
+Note: the third test is intentionally light — forcing a mid-game stuck through only public methods is fragile. `isStuck` itself is fully unit-tested in Task 1, and the stuck **UI** path is covered in Task 8. Keep it asserting only that `game.stuck` exists and is a boolean; do not over-fit it.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
