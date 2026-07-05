@@ -156,6 +156,12 @@
     else game.showInvalid()
   }
 
+  // A cancelled pointer (system gesture / interruption) aborts the drag —
+  // it must NOT be treated as a tap or attempt a drop at a stale position.
+  function onCancel() {
+    drag = null
+  }
+
   const mmss = $derived.by(() => {
     const s = game.seconds
     const m = Math.floor(s / 60)
@@ -175,7 +181,7 @@
   onpointerdowncapture={firstTap}
   onpointermove={onMove}
   onpointerup={onUp}
-  onpointercancel={onUp}
+  onpointercancel={onCancel}
 >
   <!-- Toolbar -->
   <header class="toolbar">

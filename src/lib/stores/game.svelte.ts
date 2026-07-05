@@ -119,6 +119,9 @@ class SolitaireGame {
     this.won = false
     this.stuck = false
     this.hint = null
+    // Resume the clock: reaching a stuck (or won) state stops the timer, and
+    // undoing back into a live game must let time run again. No-op if already running.
+    this.#startTimer()
     play('flip', settings.sound)
   }
 
