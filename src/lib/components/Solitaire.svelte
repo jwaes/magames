@@ -5,8 +5,118 @@
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
   import { NUM_TABLEAU, canMove, type Source, type Dest } from '../engine/solitaire'
   import Card from './Card.svelte'
+  import { tick } from 'svelte'
 
   let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
+
+  const reduceMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const MOVE_MS = 190
+
+  // ── Tap-to-move glide ────────────────────────────────────────────────
+  // A deterministic "fly" overlay: capture the moved card(s) at their source
+  // position, apply the move, then animate clones to their destination. Works
+  // in EVERY direction (Svelte crossfade could not pair reliably across the
+  // different pile types). Only tap-moves animate; drag has its own ghost.
+  interface FlyCard {
+    card: TCard
+    fromX: number
+    fromY: number
+    toX: number
+    toY: number
+  }
+  let fly = $state<{ items: FlyCard[]; go: boolean } | null>(null)
+  let flyW = $state(0)
+  let flyH = $state(0)
+  // Cards currently in flight are hidden in their real pile (no duplicate).
+  let flyingIds = $state<Set<string>>(new Set())
+
+  function rectOf(id: string): DOMRect | null {
+    const el = document.querySelector(`[data-cid="${id}"]`)
+    return el ? el.getBoundingClientRect() : null
+  }
+
+  function movedCards(src: Source): TCard[] {
+    if (src.type === 'waste') {
+      const w = game.state.waste
+      return w.length ? [w[w.length - 1]] : []
+    }
+    if (src.type === 'foundation') {
+      const f = game.state.foundations[src.pile]
+      return f.length ? [f[f.length - 1]] : []
+    }
+    return game.state.tableau[src.pile].slice(src.index)
+  }
+
+  // Tap a card and glide it to its automatic destination.
+  async function animatedTap(src: Source) {
+    const before = game.moves
+    const cards = movedCards(src)
+    const from = cards.map((c) => rectOf(c.id))
+    game.tap(src)
+    if (reduceMotion || game.moves === before) return // nothing moved (or motion off)
+
+    await tick()
+    const to = cards.map((c) => rectOf(c.id))
+    const size = from.find(Boolean)
+    const items: FlyCard[] = []
+    for (let i = 0; i < cards.length; i++) {
+      const a = from[i]
+      const b = to[i]
+      if (a && b) items.push({ card: cards[i], fromX: a.left, fromY: a.top, toX: b.left, toY: b.top })
+    }
+    if (items.length === 0 || !size) return
+
+    flyW = size.width
+    flyH = size.height
+    flyingIds = new Set(items.map((it) => it.card.id))
+    fly = { items, go: false }
+    await tick()
+    // Two frames so the browser paints the "from" position before transitioning.
+    requestAnimationFrame(() => requestAnimationFrame(() => fly && (fly = { ...fly, go: true })))
+    window.setTimeout(() => {
+      fly = null
+      flyingIds = new Set()
+    }, MOVE_MS + 40)
+  }
+
+  // ── Deck-draw deal & flip ────────────────────────────────────────────
+  // A card comes off the deck (face-down, left), travels to the waste (right)
+  // and flips over to reveal its face as it lands — like dealing a card.
+  const DRAW_MS = 260
+  let drawAnim = $state<{ card: TCard; fromX: number; fromY: number; toX: number; toY: number; go: boolean } | null>(
+    null
+  )
+
+  async function drawDeck() {
+    const stockRect = document.querySelector('[data-testid="stock"]')?.getBoundingClientRect()
+    const wasteRect = document.querySelector('[data-testid="waste"]')?.getBoundingClientRect()
+    const before = game.moves
+    game.drawStock()
+    // moves only increases on a real draw (not on a recycle) — skip the flip then.
+    if (reduceMotion || game.moves === before || !stockRect || !wasteRect) return
+
+    await tick()
+    const top = game.state.waste[game.state.waste.length - 1]
+    if (!top) return
+    flyW = wasteRect.width
+    flyH = wasteRect.height
+    flyingIds = new Set([top.id])
+    drawAnim = {
+      card: top,
+      fromX: stockRect.left,
+      fromY: stockRect.top,
+      toX: wasteRect.left,
+      toY: wasteRect.top,
+      go: false
+    }
+    await tick()
+    requestAnimationFrame(() => requestAnimationFrame(() => drawAnim && (drawAnim = { ...drawAnim, go: true })))
+    window.setTimeout(() => {
+      drawAnim = null
+      flyingIds = new Set()
+    }, DRAW_MS + 40)
+  }
 
   // Vertical overlap of cards in a tableau column, in units of card height.
   const OFFSET_DOWN = 0.17
@@ -69,7 +179,7 @@
   function startPress(e: PointerEvent, src: Source) {
     // Tap mode: behave as a pure tap on release; no drag bookkeeping needed.
     if (settings.movement === 'tap') {
-      game.tap(src)
+      animatedTap(src)
       return
     }
     const cards = pickupCards(src)
@@ -147,8 +257,8 @@
     const d = drag
     drag = null
     if (!d.active) {
-      // No real movement → treat as a tap.
-      game.tap(d.src)
+      // No real movement → treat as a tap (with the glide).
+      animatedTap(d.src)
       return
     }
     const dest = resolveDropFor(d.src, e.clientX - d.grabX, e.clientY - d.grabY, d.cardW, d.cardH)
@@ -208,9 +318,9 @@
       <!-- Stock -->
       <div class="slot pile" data-testid="stock">
         {#if game.state.stock.length}
-          <Card card={{ id: 'stock', suit: 'spades', rank: 1, faceUp: false }} onpick={() => game.drawStock()} />
+          <Card card={{ id: 'stock', suit: 'spades', rank: 1, faceUp: false }} onpick={drawDeck} />
         {:else}
-          <button class="empty recycle" onclick={() => game.drawStock()} aria-label="Opnieuw delen">↺</button>
+          <button class="empty recycle" onclick={drawDeck} aria-label="Opnieuw delen">↺</button>
         {/if}
       </div>
 
@@ -218,7 +328,13 @@
       <div class="slot pile" data-testid="waste">
         {#if game.state.waste.length}
           {@const top = game.state.waste[game.state.waste.length - 1]}
-          <Card card={top} hinted={game.hint?.type === 'waste'} onpointerdown={(e) => startPress(e, { type: 'waste' })} />
+          <div class="card-holder" data-cid={top.id} style:opacity={flyingIds.has(top.id) ? '0' : ''}>
+            <Card
+              card={top}
+              hinted={game.hint?.type === 'waste'}
+              onpointerdown={(e) => startPress(e, { type: 'waste' })}
+            />
+          </div>
         {:else}
           <div class="empty"></div>
         {/if}
@@ -230,7 +346,10 @@
       {#each game.state.foundations as foundation, fi}
         <div class="slot pile" data-drop-foundation={fi} class:legal={legalTargets.has(`f${fi}`)}>
           {#if foundation.length}
-            <Card card={foundation[foundation.length - 1]} onpick={() => game.tap({ type: 'foundation', pile: fi })} />
+            {@const ftop = foundation[foundation.length - 1]}
+            <div class="card-holder" data-cid={ftop.id} style:opacity={flyingIds.has(ftop.id) ? '0' : ''}>
+              <Card card={ftop} onpick={() => animatedTap({ type: 'foundation', pile: fi })} />
+            </div>
           {:else}
             <div class="empty suit">{SUIT_SYMBOL[SUITS[fi]]}</div>
           {/if}
@@ -253,7 +372,12 @@
             <div class="empty"></div>
           {/if}
           {#each l.items as placed (placed.card.id)}
-            <div class="stacked" style="top: calc(var(--card-h) * {placed.top})">
+            <div
+              class="stacked"
+              data-cid={placed.card.id}
+              style="top: calc(var(--card-h) * {placed.top})"
+              style:opacity={flyingIds.has(placed.card.id) ? '0' : ''}
+            >
               <Card
                 card={placed.card}
                 hinted={hintedTableau(pile, placed.index)}
@@ -267,6 +391,41 @@
       {/each}
     </div>
   </main>
+
+  {#if fly}
+    <div class="fly-layer">
+      {#each fly.items as it (it.card.id)}
+        <div
+          class="fly-card"
+          style="--card-w: {flyW}px; --card-h: {flyH}px; width: {flyW}px; height: {flyH}px; transform: translate({fly.go
+            ? it.toX
+            : it.fromX}px, {fly.go ? it.toY : it.fromY}px)"
+        >
+          <Card card={it.card} />
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  {#if drawAnim}
+    <div class="fly-layer">
+      <div
+        class="deal-fly"
+        style="--card-w: {flyW}px; --card-h: {flyH}px; width: {flyW}px; height: {flyH}px; transform: translate({drawAnim.go
+          ? drawAnim.toX
+          : drawAnim.fromX}px, {drawAnim.go ? drawAnim.toY : drawAnim.fromY}px)"
+      >
+        <div class="deal-inner" class:go={drawAnim.go}>
+          <div class="deal-face deal-back">
+            <Card card={{ id: 'deal-back', suit: 'spades', rank: 1, faceUp: false }} />
+          </div>
+          <div class="deal-face deal-front">
+            <Card card={drawAnim.card} />
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if drag?.active}
     <div class="drag-layer">
@@ -410,6 +569,59 @@
     left: 0;
     width: var(--card-w);
     height: var(--card-h);
+  }
+  /* Holds the top card of a single-card pile (stock/waste/foundation). */
+  .card-holder {
+    position: absolute;
+    inset: 0;
+  }
+  /* Overlay layer for the tap-to-move glide (above the board, non-interactive). */
+  .fly-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 300;
+  }
+  .fly-card {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transition: transform 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+  }
+  /* Deck deal-and-flip: outer translates deck → waste, inner rotates back → face. */
+  .deal-fly {
+    position: fixed;
+    left: 0;
+    top: 0;
+    perspective: 900px;
+    transition: transform 260ms cubic-bezier(0.3, 0.7, 0.4, 1);
+    will-change: transform;
+  }
+  .deal-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 260ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  }
+  .deal-inner.go {
+    transform: rotateY(180deg);
+  }
+  .deal-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+  }
+  .deal-front {
+    transform: rotateY(180deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fly-card,
+    .deal-fly,
+    .deal-inner {
+      transition: none;
+    }
   }
 
   .empty {
