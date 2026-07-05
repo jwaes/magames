@@ -288,6 +288,17 @@
       </div>
     </div>
   {/if}
+
+  {#if game.stuck && !game.won}
+    <div class="win" role="dialog" aria-label="Geen zetten meer">
+      <div class="win-card">
+        <div class="trophy">🤔</div>
+        <h2>Geen zetten meer mogelijk</h2>
+        <p>Dit spel zit vast. Probeer een nieuw spel.</p>
+        <button class="big-btn" onclick={() => game.newGame()}>Nieuw spel</button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
