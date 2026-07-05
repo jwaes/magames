@@ -10,6 +10,10 @@ const base = process.env.BASE_PATH ?? (process.env.NODE_ENV === 'production' ? '
 
 export default defineConfig({
   base,
+  // Under Vitest, resolve Svelte's browser build so @testing-library/svelte can
+  // mount components (Svelte 5 otherwise resolves its server build in jsdom).
+  // Guarded by VITEST so the production build is unaffected.
+  resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
   plugins: [
     svelte(),
     VitePWA({
