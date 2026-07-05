@@ -1,8 +1,14 @@
 <script lang="ts">
   import { match3 } from '../../stores/match3.svelte'
+  import { unlockAudio } from '../../sound/sfx'
   import Tile from './Tile.svelte'
 
-  let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
+  let { onhome }: { onhome: () => void } = $props()
+
+  // iOS/Safari only allows audio after a user gesture — unlock on first tap.
+  function firstTap() {
+    unlockAudio()
+  }
 
   function isSelected(r: number, c: number): boolean {
     const s = match3.selected
@@ -10,14 +16,14 @@
   }
 </script>
 
-<div class="game">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="game" onpointerdowncapture={firstTap}>
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
     <button class="tool" onclick={() => match3.newGame()} aria-label="Nieuw spel">🔄<span>Nieuw</span></button>
     <div class="spacer"></div>
     <div class="stat"><small>Score</small><strong>{match3.score}</strong></div>
     <div class="stat"><small>Beste</small><strong>{match3.best}</strong></div>
-    <button class="tool" onclick={onsettings} aria-label="Instellingen">⚙️<span>Meer</span></button>
   </header>
 
   <main class="board-wrap">

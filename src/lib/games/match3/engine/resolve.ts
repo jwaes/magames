@@ -31,7 +31,10 @@ export function resolveAll(board: Board, rng: () => number): { board: Board; sco
   let current = board
   let score = 0
   let cascade = 0
-  for (;;) {
+  // Hard cap: refills are random so cascades could in principle chain forever
+  // (probability → 0, never seen). Cap guarantees termination.
+  const MAX_CASCADES = 100
+  while (cascade < MAX_CASCADES) {
     const { board: next, cleared } = resolveOnce(current, rng)
     if (cleared === 0) break
     cascade++

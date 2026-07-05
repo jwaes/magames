@@ -42,7 +42,7 @@
 {:else if screen === 'stats'}
   <StatsScreen onclose={() => (screen = 'home')} />
 {:else if screen === 'match3'}
-  <Match3 onhome={() => (screen = 'home')} onsettings={() => (showSettings = true)} />
+  <Match3 onhome={() => (screen = 'home')} />
 {:else}
   <Solitaire onhome={goHome} onsettings={() => (showSettings = true)} />
 {/if}
