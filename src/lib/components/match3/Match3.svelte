@@ -5,10 +5,17 @@
   import { flip } from 'svelte/animate'
   import { cubicOut } from 'svelte/easing'
   import Tile from './Tile.svelte'
+  import Match3Settings from './Match3Settings.svelte'
 
   let { onhome }: { onhome: () => void } = $props()
 
-  const FALL_MS = 240
+  let showSettings = $state(false)
+
+  const FALL_BASE = 240
+  const EXPLODE_BASE = 200
+  const FLASH_BASE = 360
+  // All durations scale with the chosen speed (Rustig = slow, for easy following).
+  const fallMs = $derived(FALL_BASE * match3.animMult)
 
   interface Placed {
     tile: { id: number; kind: Kind }
@@ -42,7 +49,7 @@
   }
 
   // New tiles slide in from just above their cell.
-  function drop(_node: Element, { duration = FALL_MS }: { duration?: number } = {}) {
+  function drop(_node: Element, { duration = fallMs }: { duration?: number } = {}) {
     if (reduce) return { duration: 0 }
     return {
       duration,
@@ -60,10 +67,16 @@
     <div class="spacer"></div>
     <div class="stat"><small>Score</small><strong>{match3.score}</strong></div>
     <div class="stat"><small>Beste</small><strong>{match3.best}</strong></div>
+    <button class="tool" onclick={() => (showSettings = true)} aria-label="Instellingen">⚙️<span>Meer</span></button>
   </header>
 
   <main class="board-wrap">
-    <div class="board" data-testid="match3-board" style="--n: {match3.board.cols}">
+    <div
+      class="board"
+      data-testid="match3-board"
+      style="--n: {match3.board.cols}; --burst: {EXPLODE_BASE * match3.animMult}ms; --flash: {FLASH_BASE *
+        match3.animMult}ms"
+    >
       <!-- Click backdrop: one cell per position; selection stays position-based. -->
       {#each match3.board.cells as row, r}
         {#each row as _cell, c}
@@ -83,7 +96,7 @@
             class="tile-slot"
             class:exploding={isExploding(p.r, p.c)}
             style="left: calc(var(--cell) * {p.c}); top: calc(var(--cell) * {p.r}); width: var(--cell); height: var(--cell)"
-            animate:flip={{ duration: reduce ? 0 : FALL_MS, easing: cubicOut }}
+            animate:flip={{ duration: reduce ? 0 : fallMs, easing: cubicOut }}
             in:drop
           >
             <Tile kind={p.tile.kind} selected={isSelected(p.r, p.c)} />
@@ -97,6 +110,10 @@
     </div>
   </main>
 </div>
+
+{#if showSettings}
+  <Match3Settings onclose={() => (showSettings = false)} />
+{/if}
 
 <style>
   .game {
@@ -198,7 +215,7 @@
     position: absolute;
   }
   .tile-slot.exploding {
-    animation: burst 200ms ease-out forwards;
+    animation: burst var(--burst, 200ms) ease-out forwards;
     z-index: 5;
   }
   @keyframes burst {
@@ -221,7 +238,7 @@
     pointer-events: none;
     z-index: 6;
     background: radial-gradient(circle, rgba(255, 214, 10, 0.5) 0%, rgba(255, 214, 10, 0) 65%);
-    animation: flash 360ms ease-out forwards;
+    animation: flash var(--flash, 360ms) ease-out forwards;
   }
   .big-flash.bomb {
     background: radial-gradient(circle, rgba(120, 200, 255, 0.6) 0%, rgba(120, 200, 255, 0) 70%);

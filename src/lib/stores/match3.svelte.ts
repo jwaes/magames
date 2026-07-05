@@ -3,15 +3,18 @@ import { fillBoard, resolveSteps, reshuffle } from '../games/match3/engine/resol
 import { isLegalSwap, swappedBoard, hasAnyMove } from '../games/match3/engine/match'
 import { areAdjacent } from '../games/match3/engine/board'
 import { mulberry32 } from '../games/match3/engine/rng'
-import { play } from '../sound/sfx'
+import { play, playPop } from '../sound/sfx'
 
 type GridSize = 6 | 7 | 8
 type Movement = 'tap' | 'swipe'
+export type Speed = 'rustig' | 'normaal' | 'snel'
 
-// Animation timing (ms). These are the knobs for the "explode → fall" feel.
+// Base animation timing (ms) for the "explode → fall" feel, scaled by the
+// chosen speed. `rustig` is the gentle default (slower, easy to follow).
 const SWAP_MS = 130 // slide two tiles past each other
 const EXPLODE_MS = 200 // matched tiles burst in place, leaving gaps
 const FALL_MS = 240 // tiles above fall into the gaps + new tiles drop in
+export const SPEED_MULT: Record<Speed, number> = { rustig: 1.9, normaal: 1, snel: 0.55 }
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const prefersReducedMotion = () =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -23,10 +26,11 @@ interface PersistedSettings {
   gridSize: GridSize
   movement: Movement
   sound: boolean
+  speed: Speed
 }
 
 function loadSettings(): PersistedSettings {
-  const fallback: PersistedSettings = { gridSize: 7, movement: 'tap', sound: true }
+  const fallback: PersistedSettings = { gridSize: 7, movement: 'tap', sound: true, speed: 'rustig' }
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
@@ -35,7 +39,8 @@ function loadSettings(): PersistedSettings {
     return {
       gridSize: p.gridSize === 6 || p.gridSize === 8 ? p.gridSize : 7,
       movement: p.movement === 'swipe' ? 'swipe' : 'tap',
-      sound: p.sound !== false
+      sound: p.sound !== false,
+      speed: p.speed === 'normaal' || p.speed === 'snel' ? p.speed : 'rustig'
     }
   } catch {
     return fallback
@@ -58,6 +63,7 @@ class Match3 {
   gridSize = $state<GridSize>(7)
   movement = $state<Movement>('tap')
   sound = $state(true)
+  speed = $state<Speed>('rustig')
   board = $state<Board>(fillBoard(7, 7, Math.random))
   score = $state(0)
   best = $state(0)
@@ -68,11 +74,17 @@ class Match3 {
   bigEffect = $state(0)
   #animating = false
 
+  /** How much every animation duration is scaled by the current speed. */
+  get animMult(): number {
+    return SPEED_MULT[this.speed]
+  }
+
   constructor() {
     const s = loadSettings()
     this.gridSize = s.gridSize
     this.movement = s.movement
     this.sound = s.sound
+    this.speed = s.speed
     this.best = loadBest()
     this.board = fillBoard(this.gridSize, this.gridSize, Math.random)
   }
@@ -82,7 +94,7 @@ class Match3 {
     try {
       localStorage.setItem(
         SETTINGS_KEY,
-        JSON.stringify({ gridSize: this.gridSize, movement: this.movement, sound: this.sound })
+        JSON.stringify({ gridSize: this.gridSize, movement: this.movement, sound: this.sound, speed: this.speed })
       )
     } catch {
       /* ignore */
@@ -118,6 +130,7 @@ class Match3 {
     this.#animating = true
     this.selected = null
     const reduce = prefersReducedMotion()
+    const m = this.animMult
     const swapped = swappedBoard(this.board, a, b)
 
     if (!isLegalSwap(this.board, a, b)) {
@@ -125,9 +138,9 @@ class Match3 {
       if (!reduce) {
         const original = this.board
         this.board = swapped // slide there…
-        await delay(SWAP_MS + 40)
+        await delay(SWAP_MS * m + 40)
         this.board = original // …and back
-        await delay(SWAP_MS)
+        await delay(SWAP_MS * m)
       }
       this.#animating = false
       return
@@ -135,20 +148,25 @@ class Match3 {
 
     play('place', this.sound)
     this.board = swapped
-    if (!reduce) await delay(SWAP_MS)
+    if (!reduce) await delay(SWAP_MS * m)
 
     const { steps, score } = resolveSteps(this.board, Math.random)
+    let cascade = 0
     for (const step of steps) {
+      cascade++
+      // A pop on EVERY cascade; the sound differs by run length (3/4/5) and
+      // rises with cascade depth so chains feel satisfying.
+      playPop(step.runMax, cascade, this.sound)
       if (reduce) {
         this.board = step.boardAfter
         continue
       }
       this.exploding = step.cleared // burst in place → gaps appear
       this.bigEffect = step.runMax >= 4 ? step.runMax : 0
-      await delay(EXPLODE_MS)
+      await delay(EXPLODE_MS * m)
       this.exploding = []
       this.board = step.boardAfter // tiles above fall into the gaps
-      await delay(FALL_MS)
+      await delay(FALL_MS * m)
       this.bigEffect = 0
     }
     this.exploding = []
@@ -191,6 +209,10 @@ class Match3 {
   }
   toggleSound(): void {
     this.sound = !this.sound
+    this.#persistSettings()
+  }
+  setSpeed(s: Speed): void {
+    this.speed = s
     this.#persistSettings()
   }
 }
