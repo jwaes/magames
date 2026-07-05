@@ -59,7 +59,7 @@ export function markPlayed(stats: Stats, today: string): Stats {
 
 export function recordWin(stats: Stats, o: { seconds: number; moves: number }): { stats: Stats; records: WinRecords } {
   const currentWinStreak = stats.currentWinStreak + 1
-  const newBestTime = stats.bestTimeSeconds === null || (o.seconds > 0 && o.seconds < stats.bestTimeSeconds)
+  const newBestTime = o.seconds > 0 && (stats.bestTimeSeconds === null || o.seconds < stats.bestTimeSeconds)
   const newFewestMoves = stats.fewestMoves === null || o.moves < stats.fewestMoves
   const newBestStreak = currentWinStreak > stats.bestWinStreak
   const next: Stats = {

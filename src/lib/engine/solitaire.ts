@@ -302,5 +302,13 @@ export function isStuck(state: GameState): boolean {
     if (placeableAnywhere(state, c)) return false
   }
 
+  for (let f = 0; f < state.foundations.length; f++) {
+    if (state.foundations[f].length === 0) continue
+    const src: Source = { type: 'foundation', pile: f }
+    for (let q = 0; q < NUM_TABLEAU; q++) {
+      if (canMove(state, src, { type: 'tableau', pile: q })) return false
+    }
+  }
+
   return true
 }

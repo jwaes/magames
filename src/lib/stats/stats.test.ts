@@ -68,6 +68,11 @@ describe('recordWin', () => {
     expect(r2.stats.fewestMoves).toBe(80)
     expect(r2.stats.currentWinStreak).toBe(2)
   })
+
+  it('does not set a fastest time from a 0-second win', () => {
+    const { stats } = recordWin(EMPTY_STATS, { seconds: 0, moves: 50 })
+    expect(stats.bestTimeSeconds).toBeNull()
+  })
 })
 
 describe('recordLoss', () => {

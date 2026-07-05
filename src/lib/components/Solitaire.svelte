@@ -42,6 +42,8 @@
     y: number
     grabX: number
     grabY: number
+    cardW: number
+    cardH: number
     active: boolean
   }
   let drag = $state<DragState | null>(null)
@@ -83,6 +85,8 @@
       y: e.clientY,
       grabX: e.clientX - rect.left,
       grabY: e.clientY - rect.top,
+      cardW: rect.width,
+      cardH: rect.height,
       active: false
     }
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -111,12 +115,9 @@
   // Best-overlap, legal-first: compare the dragged top card's rect against each
   // drop pile's rect; among legal piles pick the largest overlap. `src` is passed
   // explicitly because `drag` is nulled before this runs.
-  function resolveDropFor(src: Source, cardLeft: number, cardTop: number): Dest | null {
+  function resolveDropFor(src: Source, cardLeft: number, cardTop: number, w: number, h: number): Dest | null {
     const board = document.querySelector('[data-testid="board"]') as HTMLElement | null
     if (!board) return null
-    const cs = getComputedStyle(board)
-    const w = parseFloat(cs.getPropertyValue('--card-w')) || 80
-    const h = parseFloat(cs.getPropertyValue('--card-h')) || 112
     const cardRect = { left: cardLeft, top: cardTop, right: cardLeft + w, bottom: cardTop + h }
 
     let bestDest: Dest | null = null
@@ -150,20 +151,10 @@
       game.tap(d.src)
       return
     }
-    const dest = resolveDropFor(d.src, e.clientX - d.grabX, e.clientY - d.grabY)
+    const dest = resolveDropFor(d.src, e.clientX - d.grabX, e.clientY - d.grabY, d.cardW, d.cardH)
     if (dest) game.moveTo(d.src, dest)
     else game.showInvalid()
   }
-
-  let ghostCardW = $state(0)
-  let ghostCardH = $state(0)
-  $effect(() => {
-    const board = document.querySelector('[data-testid="board"]') as HTMLElement | null
-    if (!board) return
-    const cs = getComputedStyle(board)
-    ghostCardW = parseFloat(cs.getPropertyValue('--card-w')) || 0
-    ghostCardH = parseFloat(cs.getPropertyValue('--card-h')) || 0
-  })
 
   const mmss = $derived.by(() => {
     const s = game.seconds
@@ -179,7 +170,13 @@
 
 <!-- Pointer tracking here powers drag-and-drop; the board's cards remain individually focusable buttons. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="game" onpointerdowncapture={firstTap} onpointermove={onMove} onpointerup={onUp}>
+<div
+  class="game"
+  onpointerdowncapture={firstTap}
+  onpointermove={onMove}
+  onpointerup={onUp}
+  onpointercancel={onUp}
+>
   <!-- Toolbar -->
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
@@ -270,7 +267,7 @@
       {#each drag.cards as c, i (c.id)}
         <div
           class="ghost"
-          style="left: {drag.x - drag.grabX}px; top: {drag.y - drag.grabY + i * 0.32 * ghostCardH}px; width: {ghostCardW}px; height: {ghostCardH}px"
+          style="left: {drag.x - drag.grabX}px; top: {drag.y - drag.grabY + i * 0.32 * drag.cardH}px; width: {drag.cardW}px; height: {drag.cardH}px"
         >
           <Card card={c} />
         </div>

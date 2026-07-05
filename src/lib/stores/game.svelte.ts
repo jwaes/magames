@@ -128,6 +128,7 @@ class SolitaireGame {
       if (this.stuck) stats.recordLoss({ seconds: this.seconds })
       else stats.recordAbandon({ seconds: this.seconds })
       this.#finalized = true
+      this.#stopTimer()
     }
   }
 

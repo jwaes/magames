@@ -227,4 +227,12 @@ describe('isStuck', () => {
     )
     expect(isStuck(s)).toBe(false)
   })
+
+  it('is false when a foundation card can move back to a tableau', () => {
+    const s = emptyState()
+    // Foundation hearts holds A..5; its top 5♥ can drop on a black 6 in the tableau.
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4, 5].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6)] // black 6 accepts red 5; no other move exists
+    expect(isStuck(s)).toBe(false)
+  })
 })
