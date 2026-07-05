@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveAll, fillBoard, reshuffle } from './resolve'
+import { resolveAll, resolveSteps, fillBoard, reshuffle } from './resolve'
 import { findMatches, hasAnyMove } from './match'
 import { mulberry32 } from './rng'
 import type { Board, Kind } from './types'
@@ -23,6 +23,39 @@ describe('resolveAll', () => {
     expect(findMatches(out)).toEqual([])
     expect(out.cells.flat().every((c) => c !== null)).toBe(true) // fully refilled
     expect(score).toBeGreaterThanOrEqual(30) // 3 cleared * 10 * 1
+  })
+})
+
+describe('resolveSteps', () => {
+  it('emits a step per cascade and agrees with resolveAll on final board + score', () => {
+    const b = board([
+      [0, 0, 0],
+      [1, 2, 3],
+      [4, 5, 1]
+    ])
+    const viaAll = resolveAll(board(b.cells.map((row) => row.map((c) => c!.kind))), mulberry32(5))
+    const stepped = resolveSteps(board(b.cells.map((row) => row.map((c) => c!.kind))), mulberry32(5))
+    expect(stepped.score).toBe(viaAll.score)
+    expect(stepped.board.cells.flat().map((c) => c!.kind)).toEqual(viaAll.board.cells.flat().map((c) => c!.kind))
+    expect(stepped.steps.length).toBeGreaterThanOrEqual(1)
+    // First step clears the top-row triple.
+    expect(stepped.steps[0].cleared).toEqual([
+      { r: 0, c: 0 },
+      { r: 0, c: 1 },
+      { r: 0, c: 2 }
+    ])
+  })
+
+  it('reports the run length so 4- and 5-in-a-row can trigger bigger effects', () => {
+    const b = board([
+      [0, 0, 0, 0, 1],
+      [2, 3, 4, 5, 2],
+      [3, 4, 5, 2, 3],
+      [4, 5, 2, 3, 4],
+      [5, 2, 3, 4, 5]
+    ])
+    const { steps } = resolveSteps(b, mulberry32(1))
+    expect(steps[0].runMax).toBe(4)
   })
 })
 

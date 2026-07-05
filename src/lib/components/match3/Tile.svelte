@@ -25,17 +25,17 @@
 
 <style>
   .tile {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    inset: 8%;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     background: rgba(255, 255, 255, 0.92);
     border-radius: 16%;
-    /* Scale the symbol to the tile (container query units) so it stays big and
-       clear at any grid size — key for low vision. */
-    font-size: 62cqmin;
+    /* Scale the symbol to the cell size (a length var the board provides) so it
+       stays big and clear at any grid size — key for low vision. */
+    font-size: calc(var(--cell, 44px) * 0.58);
     line-height: 1;
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);

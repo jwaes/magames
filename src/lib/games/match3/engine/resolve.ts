@@ -1,6 +1,64 @@
-import { type Board, type Cell, type Kind } from './types'
+import { type Board, type Cell, type Kind, type Pos } from './types'
 import { cloneBoard, spawnKind } from './board'
 import { findMatches, hasAnyMove } from './match'
+
+/** One cascade, broken out for animation: which tiles burst, then the board after they fall. */
+export interface CascadeStep {
+  /** Positions that matched this cascade (to explode in place). */
+  cleared: Pos[]
+  /** Longest straight run in this cascade (3, 4, 5, ...) — drives bigger effects. */
+  runMax: number
+  /** The board after this cascade's gravity + refill. */
+  boardAfter: Board
+}
+
+/** Longest horizontal or vertical run of same-kind tiles currently on the board. */
+function longestRun(board: Board): number {
+  let max = 0
+  const { rows, cols, cells } = board
+  for (let r = 0; r < rows; r++) {
+    let run = 1
+    for (let c = 1; c < cols; c++) {
+      const a = cells[r][c]
+      const b = cells[r][c - 1]
+      run = a && b && a.kind === b.kind ? run + 1 : 1
+      if (run > max) max = run
+    }
+  }
+  for (let c = 0; c < cols; c++) {
+    let run = 1
+    for (let r = 1; r < rows; r++) {
+      const a = cells[r][c]
+      const b = cells[r - 1][c]
+      run = a && b && a.kind === b.kind ? run + 1 : 1
+      if (run > max) max = run
+    }
+  }
+  return max
+}
+
+/**
+ * Like resolveAll, but returns each cascade as a step so the UI can animate
+ * explode-then-fall. Same final board and score as resolveAll for a given rng.
+ */
+export function resolveSteps(board: Board, rng: () => number): { steps: CascadeStep[]; board: Board; score: number } {
+  const steps: CascadeStep[] = []
+  let current = board
+  let score = 0
+  let cascade = 0
+  const MAX_CASCADES = 100
+  while (cascade < MAX_CASCADES) {
+    const cleared = findMatches(current)
+    if (cleared.length === 0) break
+    const runMax = longestRun(current)
+    const { board: after } = resolveOnce(current, rng)
+    cascade++
+    score += cleared.length * 10 * cascade
+    steps.push({ cleared, runMax, boardAfter: after })
+    current = after
+  }
+  return { steps, board: current, score }
+}
 
 /** Clear current matches, drop tiles into gaps, refill from the top. One pass. */
 export function resolveOnce(board: Board, rng: () => number): { board: Board; cleared: number } {
