@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findMatches, isLegalSwap, hasAnyMove } from './match'
+import { findMatches, isLegalSwap, hasAnyMove, findHint } from './match'
 import type { Board, Kind } from './types'
 
 // Build a board from a grid of kind digits; ids are assigned row-major.
@@ -74,6 +74,25 @@ describe('isLegalSwap / hasAnyMove', () => {
     ])
     expect(isLegalSwap(b, { r: 0, c: 2 }, { r: 1, c: 2 })).toBe(true)
     expect(hasAnyMove(b)).toBe(true)
+  })
+
+  it('findHint returns a legal swap, or null when there is none', () => {
+    const movable = board([
+      [0, 0, 1],
+      [2, 3, 0],
+      [4, 5, 6]
+    ])
+    const h = findHint(movable)
+    expect(h).not.toBeNull()
+    expect(isLegalSwap(movable, h!.a, h!.b)).toBe(true)
+
+    const stuck = board([
+      [0, 1, 2, 0],
+      [1, 2, 0, 1],
+      [2, 0, 1, 2],
+      [0, 1, 2, 0]
+    ])
+    expect(findHint(stuck)).toBeNull()
   })
 
   it('rejects a non-adjacent swap', () => {

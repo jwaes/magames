@@ -65,3 +65,18 @@ export function hasAnyMove(board: Board): boolean {
   }
   return false
 }
+
+/** The first legal swap (a hint), scanning row-major, or null if none. */
+export function findHint(board: Board): { a: Pos; b: Pos } | null {
+  for (let r = 0; r < board.rows; r++) {
+    for (let c = 0; c < board.cols; c++) {
+      if (c + 1 < board.cols && isLegalSwap(board, { r, c }, { r, c: c + 1 })) {
+        return { a: { r, c }, b: { r, c: c + 1 } }
+      }
+      if (r + 1 < board.rows && isLegalSwap(board, { r, c }, { r: r + 1, c })) {
+        return { a: { r, c }, b: { r: r + 1, c } }
+      }
+    }
+  }
+  return null
+}

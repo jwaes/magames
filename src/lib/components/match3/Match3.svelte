@@ -1,18 +1,65 @@
 <script lang="ts">
   import { match3 } from '../../stores/match3.svelte'
   import { unlockAudio } from '../../sound/sfx'
+  import type { Kind } from '../../games/match3/engine/types'
+  import { flip } from 'svelte/animate'
+  import { cubicOut } from 'svelte/easing'
   import Tile from './Tile.svelte'
+  import Match3Settings from './Match3Settings.svelte'
 
   let { onhome }: { onhome: () => void } = $props()
 
-  // iOS/Safari only allows audio after a user gesture — unlock on first tap.
+  let showSettings = $state(false)
+
+  const FALL_BASE = 240
+  const EXPLODE_BASE = 200
+  const FLASH_BASE = 360
+  // All durations scale with the chosen speed (Rustig = slow, for easy following).
+  const fallMs = $derived(FALL_BASE * match3.animMult)
+
+  interface Placed {
+    tile: { id: number; kind: Kind }
+    r: number
+    c: number
+  }
+  // Flat, id-keyed list so `animate:flip` animates falls by tile identity.
+  const placed = $derived.by(() => {
+    const out: Placed[] = []
+    const cells = match3.board.cells
+    for (let r = 0; r < cells.length; r++) {
+      for (let c = 0; c < cells[r].length; c++) {
+        const cell = cells[r][c]
+        if (cell) out.push({ tile: cell, r, c })
+      }
+    }
+    return out
+  })
+
+  const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
   function firstTap() {
     unlockAudio()
   }
-
   function isSelected(r: number, c: number): boolean {
     const s = match3.selected
     return s !== null && s.r === r && s.c === c
+  }
+  function isExploding(r: number, c: number): boolean {
+    return match3.exploding.some((p) => p.r === r && p.c === c)
+  }
+  function isHinted(r: number, c: number): boolean {
+    const h = match3.hint
+    return h !== null && ((h.a.r === r && h.a.c === c) || (h.b.r === r && h.b.c === c))
+  }
+
+  // New tiles slide in from just above their cell.
+  function drop(_node: Element, { duration = fallMs }: { duration?: number } = {}) {
+    if (reduce) return { duration: 0 }
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => `transform: translateY(${(t - 1) * 150}%); opacity: ${Math.min(1, t * 2)}`
+    }
   }
 </script>
 
@@ -21,29 +68,58 @@
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
     <button class="tool" onclick={() => match3.newGame()} aria-label="Nieuw spel">🔄<span>Nieuw</span></button>
+    <button class="tool" onclick={() => match3.showHint()} aria-label="Hint">💡<span>Hint</span></button>
     <div class="spacer"></div>
     <div class="stat"><small>Score</small><strong>{match3.score}</strong></div>
     <div class="stat"><small>Beste</small><strong>{match3.best}</strong></div>
+    <button class="tool" onclick={() => (showSettings = true)} aria-label="Instellingen">⚙️<span>Meer</span></button>
   </header>
 
   <main class="board-wrap">
     <div
       class="board"
       data-testid="match3-board"
-      style="--n: {match3.board.cols}"
+      style="--n: {match3.board.cols}; --burst: {EXPLODE_BASE * match3.animMult}ms; --flash: {FLASH_BASE *
+        match3.animMult}ms"
     >
+      <!-- Click backdrop: one cell per position; selection stays position-based. -->
       {#each match3.board.cells as row, r}
-        {#each row as cell, c}
-          <div class="cell" data-cell={`${r}-${c}`}>
-            {#if cell}
-              <Tile kind={cell.kind} selected={isSelected(r, c)} onpick={() => match3.select({ r, c })} />
-            {/if}
-          </div>
+        {#each row as _cell, c}
+          <button
+            class="cell"
+            data-cell={`${r}-${c}`}
+            aria-label={`vak ${r + 1}, ${c + 1}`}
+            onclick={() => match3.select({ r, c })}
+          ></button>
         {/each}
       {/each}
+
+      <!-- Absolutely-positioned tile layer; falls animate via FLIP. -->
+      <div class="tiles">
+        {#each placed as p (p.tile.id)}
+          <div
+            class="tile-slot"
+            class:exploding={isExploding(p.r, p.c)}
+            class:hinted={isHinted(p.r, p.c)}
+            style="left: calc(var(--cell) * {p.c}); top: calc(var(--cell) * {p.r}); width: var(--cell); height: var(--cell)"
+            animate:flip={{ duration: reduce ? 0 : fallMs, easing: cubicOut }}
+            in:drop
+          >
+            <Tile kind={p.tile.kind} selected={isSelected(p.r, p.c)} />
+          </div>
+        {/each}
+      </div>
+
+      {#if match3.bigEffect >= 4}
+        <div class="big-flash" class:bomb={match3.bigEffect >= 5}></div>
+      {/if}
     </div>
   </main>
 </div>
+
+{#if showSettings}
+  <Match3Settings onclose={() => (showSettings = false)} />
+{/if}
 
 <style>
   .game {
@@ -110,15 +186,112 @@
     min-height: 0;
   }
   .board {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(var(--n), 1fr);
-    gap: clamp(3px, 0.8vw, 8px);
+    grid-template-rows: repeat(var(--n), 1fr);
+    /* Explicit width AND height (not aspect-ratio) so descendant percentage
+       heights resolve — otherwise the tile faces collapse. */
     width: min(96vw, calc(100dvh - 120px));
-    aspect-ratio: 1;
+    height: min(96vw, calc(100dvh - 120px));
+    /* Cell size as a length, for scaling the tile symbols. */
+    --cell: calc(min(96vw, 100dvh - 120px) / var(--n));
   }
   .cell {
-    aspect-ratio: 1;
-    /* Make each cell a size container so the tile's symbol can scale to it. */
-    container-type: size;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cell::after {
+    content: '';
+    display: block;
+    margin: 8%;
+    height: 84%;
+    border-radius: 18%;
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .tiles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .tile-slot {
+    position: absolute;
+  }
+  .tile-slot.exploding {
+    animation: burst var(--burst, 200ms) ease-out forwards;
+    z-index: 5;
+  }
+  .tile-slot.hinted {
+    z-index: 4;
+  }
+  .tile-slot.hinted :global(.tile) {
+    animation: hintpulse 0.85s ease-in-out infinite;
+  }
+  @keyframes hintpulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 214, 10, 0);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgba(255, 214, 10, 0.9);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile-slot.hinted :global(.tile) {
+      animation: none;
+      box-shadow: 0 0 0 5px rgba(255, 214, 10, 0.9);
+    }
+  }
+  @keyframes burst {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(1.22);
+      filter: brightness(1.6);
+    }
+    100% {
+      transform: scale(0.12);
+      opacity: 0;
+    }
+  }
+  .big-flash {
+    position: absolute;
+    inset: -6%;
+    border-radius: 12%;
+    pointer-events: none;
+    z-index: 6;
+    background: radial-gradient(circle, rgba(255, 214, 10, 0.5) 0%, rgba(255, 214, 10, 0) 65%);
+    animation: flash var(--flash, 360ms) ease-out forwards;
+  }
+  .big-flash.bomb {
+    background: radial-gradient(circle, rgba(120, 200, 255, 0.6) 0%, rgba(120, 200, 255, 0) 70%);
+  }
+  @keyframes flash {
+    0% {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+    30% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.05);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile-slot.exploding {
+      animation: none;
+      opacity: 0;
+    }
+    .big-flash {
+      animation: none;
+      opacity: 0;
+    }
   }
 </style>

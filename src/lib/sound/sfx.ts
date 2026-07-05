@@ -37,6 +37,28 @@ function tone(freq: number, durationMs: number, type: OscillatorType, gain = 0.0
   osc.stop(now + durationMs / 1000 + 0.02)
 }
 
+/**
+ * A match "pop". The sound differs by run length — a 3 is a soft blip, a 4 is
+ * brighter with a sparkle, a 5+ is a richer chord — and the pitch rises with
+ * cascade depth so chains feel satisfying. Called on every cascade.
+ */
+export function playPop(runLength: number, cascade = 1, enabled = true): void {
+  if (!enabled) return
+  const step = Math.min(cascade - 1, 8) // rise with cascade, then plateau
+  const bump = 1 + step * 0.06
+  if (runLength >= 5) {
+    // Rich, celebratory chord.
+    ;[523, 659, 784].forEach((f, i) => window.setTimeout(() => tone(f * bump, 220, 'sine', 0.09), i * 45))
+  } else if (runLength === 4) {
+    // Bright pop + a little sparkle above.
+    tone(440 * bump, 120, 'triangle', 0.08)
+    window.setTimeout(() => tone(880 * bump, 90, 'sine', 0.05), 60)
+  } else {
+    // Soft blip for a plain 3.
+    tone(300 * bump, 90, 'sine', 0.07)
+  }
+}
+
 /** Play a named effect. `enabled` lets callers respect the mute setting cheaply. */
 export function play(name: SfxName, enabled = true): void {
   if (!enabled) return
