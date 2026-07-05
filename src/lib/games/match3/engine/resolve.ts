@@ -16,12 +16,10 @@ export function resolveOnce(board: Board, rng: () => number): { board: Board; cl
     for (let r = next.rows - 1; r >= 0; r--) {
       if (next.cells[r][c] !== null) survivors.push(next.cells[r][c])
     }
+    // Refill bottom→top: reuse survivors in order (index pointer, not shift()).
+    let si = 0
     for (let r = next.rows - 1; r >= 0; r--) {
-      if (survivors.length > 0) {
-        next.cells[r][c] = survivors.shift()!
-      } else {
-        next.cells[r][c] = { id: next.nextId++, kind: spawnKind(rng) }
-      }
+      next.cells[r][c] = si < survivors.length ? survivors[si++] : { id: next.nextId++, kind: spawnKind(rng) }
     }
   }
   return { board: next, cleared: matches.length }

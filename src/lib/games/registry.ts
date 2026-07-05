@@ -1,5 +1,5 @@
 // The multi-game shell: add new games here and they appear on the home screen.
-// Only Solitaire is playable today; the rest are placeholders for the future.
+// Solitaire and Match-3 are playable; the rest are placeholders for the future.
 
 export interface GameEntry {
   id: string

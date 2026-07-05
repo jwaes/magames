@@ -70,7 +70,7 @@ describe('isLegalSwap / hasAnyMove', () => {
     const b = board([
       [0, 0, 1],
       [2, 3, 0],
-      [4, 5, 6]
+      [4, 5, 3]
     ])
     expect(isLegalSwap(b, { r: 0, c: 2 }, { r: 1, c: 2 })).toBe(true)
     expect(hasAnyMove(b)).toBe(true)
