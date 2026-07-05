@@ -7,6 +7,7 @@ import {
   move,
   autoDest,
   isWon,
+  isStuck,
   nextAutoFinishMove,
   type GameState,
   type Source,
@@ -14,6 +15,8 @@ import {
   type DrawCount
 } from '../engine/solitaire'
 import { settings } from './settings.svelte'
+import { stats } from './stats.svelte'
+import { type WinRecords } from '../stats/stats'
 import { mulberry32 } from '../engine/cards'
 import { play } from '../sound/sfx'
 
@@ -23,10 +26,14 @@ class SolitaireGame {
   seconds = $state(0)
   /** A card the "Hint" button is currently suggesting, for a visual pulse. */
   hint = $state<Source | null>(null)
+  stuck = $state(false)
+  records = $state<WinRecords | null>(null)
 
   #history: GameState[] = $state([])
   #timer: ReturnType<typeof setInterval> | null = null
   #running = false
+  #started = false
+  #finalized = false
 
   get moves(): number {
     return this.state.moves
@@ -37,12 +44,17 @@ class SolitaireGame {
 
   /** `seed` gives a reproducible deal (used by tests); omit for a random game. */
   newGame(drawCount: DrawCount = settings.drawCount, seed?: number): void {
+    this.#finalize()
     this.state = deal(drawCount, seed === undefined ? Math.random : mulberry32(seed))
     this.#history = []
     this.won = false
+    this.stuck = false
+    this.records = null
     this.seconds = 0
     this.#stopTimer()
     this.#running = false
+    this.#started = false
+    this.#finalized = false
     play('deal', settings.sound)
   }
 
@@ -53,7 +65,18 @@ class SolitaireGame {
     this.hint = null
     this.#startTimer()
     play(sound, settings.sound)
-    if (isWon(next)) this.#onWin()
+
+    if (!this.#started) {
+      this.#started = true
+      stats.markPlayed()
+    }
+
+    if (isWon(next)) {
+      this.#onWin()
+    } else if (isStuck(next)) {
+      this.stuck = true
+      this.#stopTimer()
+    }
   }
 
   drawStock(): void {
@@ -84,13 +107,37 @@ class SolitaireGame {
     return false
   }
 
+  /** Play the "invalid" sound for a drag that snapped back with no legal target. */
+  showInvalid(): void {
+    play('invalid', settings.sound)
+  }
+
   undo(): void {
     const prev = this.#history.pop()
     if (!prev) return
     this.state = prev
     this.won = false
+    this.stuck = false
     this.hint = null
+    // Resume the clock: reaching a stuck (or won) state stops the timer, and
+    // undoing back into a live game must let time run again. No-op if already running.
+    this.#startTimer()
     play('flip', settings.sound)
+  }
+
+  /** Finalize an unfinished game: a dead game counts as a loss, else an abandon. */
+  #finalize(): void {
+    if (this.#started && !this.#finalized) {
+      if (this.stuck) stats.recordLoss({ seconds: this.seconds })
+      else stats.recordAbandon({ seconds: this.seconds })
+      this.#finalized = true
+      this.#stopTimer()
+    }
+  }
+
+  /** Call when navigating away from the board (Menu) so time/losses are recorded. */
+  leave(): void {
+    this.#finalize()
   }
 
   /** Suggest a sensible move by pulsing a card. */
@@ -144,6 +191,10 @@ class SolitaireGame {
   #onWin(): void {
     this.won = true
     this.#stopTimer()
+    if (!this.#finalized) {
+      this.records = stats.recordWin({ seconds: this.seconds, moves: this.state.moves })
+      this.#finalized = true
+    }
     play('win', settings.sound)
   }
 

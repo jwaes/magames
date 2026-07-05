@@ -4,11 +4,13 @@
   let {
     card,
     hinted = false,
-    onpick
+    onpick,
+    onpointerdown
   }: {
     card: Card
     hinted?: boolean
     onpick?: (e: MouseEvent) => void
+    onpointerdown?: (e: PointerEvent) => void
   } = $props()
 
   const color = $derived(SUIT_COLOR[card.suit])
@@ -20,6 +22,7 @@
     class:hinted
     style="color: {color}"
     onclick={onpick}
+    onpointerdown={onpointerdown}
     aria-label={`${rankLabel(card.rank)} ${card.suit}`}
     type="button"
   >

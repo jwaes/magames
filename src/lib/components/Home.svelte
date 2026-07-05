@@ -1,13 +1,24 @@
 <script lang="ts">
   import { GAMES } from '../games/registry'
+  import { stats } from '../stores/stats.svelte'
 
-  let { onplay, onsettings }: { onplay: (id: string) => void; onsettings: () => void } = $props()
+  let {
+    onplay,
+    onsettings,
+    onstats
+  }: { onplay: (id: string) => void; onsettings: () => void; onstats: () => void } = $props()
 </script>
 
 <div class="home">
   <header>
     <h1>Kaartspellen</h1>
-    <button class="gear" onclick={onsettings} aria-label="Instellingen">⚙️</button>
+    <div class="header-actions">
+      {#if stats.data.currentDayStreak > 0}
+        <span class="streak" aria-label="Dagreeks">🔥 {stats.data.currentDayStreak}</span>
+      {/if}
+      <button class="gear" onclick={onstats} aria-label="Statistieken">📊</button>
+      <button class="gear" onclick={onsettings} aria-label="Instellingen">⚙️</button>
+    </div>
   </header>
 
   <div class="grid">
@@ -40,6 +51,18 @@
   h1 {
     font-size: clamp(28px, 6vw, 56px);
     margin: 0;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .streak {
+    font-size: clamp(18px, 3vw, 28px);
+    font-weight: 800;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.2em 0.5em;
+    border-radius: 12px;
   }
   .gear {
     font-size: clamp(24px, 5vw, 40px);
