@@ -443,22 +443,27 @@ git commit -m "feat(stats): pure stats model, reducers and formatters"
 Create `src/lib/stores/stats.store.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 describe('stats store', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    vi.resetModules()
+  })
 
-  it('persists recorded wins across reloads (module re-import)', async () => {
-    const { stats } = await import('./stats.svelte?u1')
+  it('persists recorded wins and reloads them in a fresh instance', async () => {
+    const { stats } = await import('./stats.svelte')
     stats.recordWin({ seconds: 100, moves: 70 })
     expect(stats.data.gamesWon).toBe(1)
-    // A fresh import reads what was persisted.
-    const again = await import('./stats.svelte?u2')
+
+    // Reset the module registry so a fresh singleton re-reads localStorage.
+    vi.resetModules()
+    const again = await import('./stats.svelte')
     expect(again.stats.data.gamesWon).toBe(1)
   })
 
   it('reset clears everything', async () => {
-    const { stats } = await import('./stats.svelte?u3')
+    const { stats } = await import('./stats.svelte')
     stats.recordWin({ seconds: 100, moves: 70 })
     stats.reset()
     expect(stats.data.gamesWon).toBe(0)
@@ -467,7 +472,7 @@ describe('stats store', () => {
 })
 ```
 
-Note: the `?uN` query strings force Vite to treat each import as a distinct module instance so the "fresh reload reads localStorage" behavior can be asserted. Keep them exactly as written.
+Note: `vi.resetModules()` clears the module registry so the next `import('./stats.svelte')` re-evaluates the module — giving a fresh singleton that re-reads `localStorage`. Plain (unsuffixed) specifiers keep `svelte-check`/tsc happy.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -581,17 +586,23 @@ git commit -m "feat(stats): reactive persisted stats store"
 Create `src/lib/stores/settings.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 describe('settings.movement', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    vi.resetModules()
+  })
 
-  it('defaults to tap and persists a change', async () => {
-    const { settings } = await import('./settings.svelte?s1')
+  it('defaults to tap and persists a change to a fresh instance', async () => {
+    const { settings } = await import('./settings.svelte')
     expect(settings.movement).toBe('tap')
     settings.setMovement('drag')
     expect(settings.movement).toBe('drag')
-    const again = await import('./settings.svelte?s2')
+
+    // Reset the module registry so a fresh singleton re-reads localStorage.
+    vi.resetModules()
+    const again = await import('./settings.svelte')
     expect(again.settings.movement).toBe('drag')
   })
 })
