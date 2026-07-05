@@ -33,7 +33,9 @@
     border: none;
     background: rgba(255, 255, 255, 0.92);
     border-radius: 16%;
-    font-size: 70%;
+    /* Scale the symbol to the tile (container query units) so it stays big and
+       clear at any grid size — key for low vision. */
+    font-size: 62cqmin;
     line-height: 1;
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);

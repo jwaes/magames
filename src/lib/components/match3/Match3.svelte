@@ -112,5 +112,7 @@
   }
   .cell {
     aspect-ratio: 1;
+    /* Make each cell a size container so the tile's symbol can scale to it. */
+    container-type: size;
   }
 </style>
