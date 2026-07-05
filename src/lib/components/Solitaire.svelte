@@ -284,6 +284,9 @@
         <div class="trophy">🏆</div>
         <h2>Gewonnen!</h2>
         <p>In {mmss} met {game.moves} zetten.</p>
+        {#if game.records && (game.records.newBestTime || game.records.newFewestMoves || game.records.newBestStreak)}
+          <p class="record">🎉 Nieuw record!</p>
+        {/if}
         <button class="big-btn" onclick={() => game.newGame()}>Nog een spel</button>
       </div>
     </div>
@@ -481,6 +484,11 @@
   .win-card p {
     font-size: clamp(16px, 2.4vw, 22px);
     color: #444;
+  }
+  .record {
+    color: #0b6b3a;
+    font-weight: 800;
+    font-size: clamp(16px, 2.4vw, 22px);
   }
   .big-btn {
     margin-top: 0.8em;

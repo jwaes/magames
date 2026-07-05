@@ -2,9 +2,10 @@
   import Home from './lib/components/Home.svelte'
   import Solitaire from './lib/components/Solitaire.svelte'
   import SettingsModal from './lib/components/SettingsModal.svelte'
+  import StatsScreen from './lib/components/StatsScreen.svelte'
   import { game } from './lib/stores/game.svelte'
 
-  type Screen = 'home' | 'solitaire'
+  type Screen = 'home' | 'solitaire' | 'stats'
   let screen = $state<Screen>('home')
   let showSettings = $state(false)
 
@@ -24,12 +25,19 @@
       screen = 'solitaire'
     }
   }
+
+  function goHome() {
+    game.leave()
+    screen = 'home'
+  }
 </script>
 
 {#if screen === 'home'}
-  <Home onplay={play} onsettings={() => (showSettings = true)} />
+  <Home onplay={play} onsettings={() => (showSettings = true)} onstats={() => (screen = 'stats')} />
+{:else if screen === 'stats'}
+  <StatsScreen onclose={() => (screen = 'home')} />
 {:else}
-  <Solitaire onhome={() => (screen = 'home')} onsettings={() => (showSettings = true)} />
+  <Solitaire onhome={goHome} onsettings={() => (showSettings = true)} />
 {/if}
 
 {#if showSettings}

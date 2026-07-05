@@ -114,3 +114,12 @@ test('drag mode: dragging a card onto a legal pile moves it', async ({ page }) =
 
   await expect(cols.nth(5).getByRole('button', { name: '4 clubs' })).toHaveCount(1)
 })
+
+test('stats screen opens from home and shows tiles', async ({ page }) => {
+  await page.getByRole('button', { name: /Statistieken/ }).click()
+  await expect(page.getByRole('heading', { name: 'Statistieken' })).toBeVisible()
+  await expect(page.getByText('Gewonnen')).toBeVisible()
+  await expect(page.getByText('Speeltijd')).toBeVisible()
+  await page.getByRole('button', { name: 'Terug' }).click()
+  await expect(page.getByRole('heading', { name: 'Kaartspellen' })).toBeVisible()
+})
