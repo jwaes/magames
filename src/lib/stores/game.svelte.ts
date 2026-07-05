@@ -107,6 +107,11 @@ class SolitaireGame {
     return false
   }
 
+  /** Play the "invalid" sound for a drag that snapped back with no legal target. */
+  showInvalid(): void {
+    play('invalid', settings.sound)
+  }
+
   undo(): void {
     const prev = this.#history.pop()
     if (!prev) return

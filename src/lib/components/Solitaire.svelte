@@ -3,6 +3,7 @@
   import { settings } from '../stores/settings.svelte'
   import { unlockAudio } from '../sound/sfx'
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
+  import { NUM_TABLEAU, canMove, type Source, type Dest } from '../engine/solitaire'
   import Card from './Card.svelte'
 
   let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
@@ -30,6 +31,140 @@
     unlockAudio()
   }
 
+  const DRAG_THRESHOLD = 10
+
+  interface DragState {
+    src: Source
+    cards: TCard[]
+    startX: number
+    startY: number
+    x: number
+    y: number
+    grabX: number
+    grabY: number
+    active: boolean
+  }
+  let drag = $state<DragState | null>(null)
+
+  // Piles that the current drag can legally land on (for highlighting).
+  const legalTargets = $derived.by(() => {
+    const set = new Set<string>()
+    if (!drag?.active) return set
+    for (let f = 0; f < 4; f++) if (canMove(game.state, drag.src, { type: 'foundation', pile: f })) set.add(`f${f}`)
+    for (let t = 0; t < NUM_TABLEAU; t++) if (canMove(game.state, drag.src, { type: 'tableau', pile: t })) set.add(`t${t}`)
+    return set
+  })
+
+  function pickupCards(src: Source): TCard[] {
+    if (src.type === 'waste') {
+      const w = game.state.waste
+      return w.length ? [w[w.length - 1]] : []
+    }
+    if (src.type === 'tableau') return game.state.tableau[src.pile].slice(src.index)
+    return []
+  }
+
+  function startPress(e: PointerEvent, src: Source) {
+    // Tap mode: behave as a pure tap on release; no drag bookkeeping needed.
+    if (settings.movement === 'tap') {
+      game.tap(src)
+      return
+    }
+    const cards = pickupCards(src)
+    if (cards.length === 0) return
+    const target = e.currentTarget as HTMLElement
+    const rect = target.getBoundingClientRect()
+    drag = {
+      src,
+      cards,
+      startX: e.clientX,
+      startY: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      grabX: e.clientX - rect.left,
+      grabY: e.clientY - rect.top,
+      active: false
+    }
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    e.preventDefault()
+  }
+
+  function onMove(e: PointerEvent) {
+    if (!drag) return
+    drag.x = e.clientX
+    drag.y = e.clientY
+    if (!drag.active) {
+      const moved = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY)
+      if (moved > DRAG_THRESHOLD) drag.active = true
+    }
+  }
+
+  function overlapArea(
+    a: { left: number; top: number; right: number; bottom: number },
+    b: DOMRect
+  ): number {
+    const x = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+    const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
+    return x * y
+  }
+
+  // Best-overlap, legal-first: compare the dragged top card's rect against each
+  // drop pile's rect; among legal piles pick the largest overlap. `src` is passed
+  // explicitly because `drag` is nulled before this runs.
+  function resolveDropFor(src: Source, cardLeft: number, cardTop: number): Dest | null {
+    const board = document.querySelector('[data-testid="board"]') as HTMLElement | null
+    if (!board) return null
+    const cs = getComputedStyle(board)
+    const w = parseFloat(cs.getPropertyValue('--card-w')) || 80
+    const h = parseFloat(cs.getPropertyValue('--card-h')) || 112
+    const cardRect = { left: cardLeft, top: cardTop, right: cardLeft + w, bottom: cardTop + h }
+
+    let bestDest: Dest | null = null
+    let bestArea = 0
+    const check = (dest: Dest, el: Element | null) => {
+      if (!el) return
+      if (!canMove(game.state, src, dest)) return
+      const area = overlapArea(cardRect, el.getBoundingClientRect())
+      if (area > 0 && area > bestArea) {
+        bestDest = dest
+        bestArea = area
+      }
+    }
+    board.querySelectorAll('[data-drop-foundation]').forEach((el) => {
+      const pile = Number((el as HTMLElement).dataset.dropFoundation)
+      check({ type: 'foundation', pile }, el)
+    })
+    board.querySelectorAll('[data-drop-tableau]').forEach((el) => {
+      const pile = Number((el as HTMLElement).dataset.dropTableau)
+      check({ type: 'tableau', pile }, el)
+    })
+    return bestDest
+  }
+
+  function onUp(e: PointerEvent) {
+    if (!drag) return
+    const d = drag
+    drag = null
+    if (!d.active) {
+      // No real movement → treat as a tap.
+      game.tap(d.src)
+      return
+    }
+    const dest = resolveDropFor(d.src, e.clientX - d.grabX, e.clientY - d.grabY)
+    if (dest) game.moveTo(d.src, dest)
+    else game.showInvalid()
+  }
+
+  let ghostCardW = $state(0)
+  let ghostCardH = $state(0)
+  $effect(() => {
+    const board = document.querySelector('[data-testid="board"]') as HTMLElement | null
+    if (!board) return
+    const cs = getComputedStyle(board)
+    ghostCardW = parseFloat(cs.getPropertyValue('--card-w')) || 0
+    ghostCardH = parseFloat(cs.getPropertyValue('--card-h')) || 0
+  })
+
   const mmss = $derived.by(() => {
     const s = game.seconds
     const m = Math.floor(s / 60)
@@ -42,7 +177,9 @@
   }
 </script>
 
-<div class="game" onpointerdowncapture={firstTap}>
+<!-- Pointer tracking here powers drag-and-drop; the board's cards remain individually focusable buttons. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="game" onpointerdowncapture={firstTap} onpointermove={onMove} onpointerup={onUp}>
   <!-- Toolbar -->
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
@@ -78,7 +215,7 @@
       <div class="slot pile" data-testid="waste">
         {#if game.state.waste.length}
           {@const top = game.state.waste[game.state.waste.length - 1]}
-          <Card card={top} hinted={game.hint?.type === 'waste'} onpick={() => game.tap({ type: 'waste' })} />
+          <Card card={top} hinted={game.hint?.type === 'waste'} onpointerdown={(e) => startPress(e, { type: 'waste' })} />
         {:else}
           <div class="empty"></div>
         {/if}
@@ -88,7 +225,7 @@
 
       <!-- Foundations -->
       {#each game.state.foundations as foundation, fi}
-        <div class="slot pile">
+        <div class="slot pile" data-drop-foundation={fi} class:legal={legalTargets.has(`f${fi}`)}>
           {#if foundation.length}
             <Card card={foundation[foundation.length - 1]} onpick={() => game.tap({ type: 'foundation', pile: fi })} />
           {:else}
@@ -102,7 +239,13 @@
     <div class="tableau">
       {#each game.state.tableau as column, pile}
         {@const l = layout(column)}
-        <div class="column" data-testid="tableau-col" style="height: calc(var(--card-h) * {l.height})">
+        <div
+          class="column"
+          data-testid="tableau-col"
+          data-drop-tableau={pile}
+          class:legal={legalTargets.has(`t${pile}`)}
+          style="height: calc(var(--card-h) * {l.height})"
+        >
           {#if column.length === 0}
             <div class="empty"></div>
           {/if}
@@ -111,8 +254,8 @@
               <Card
                 card={placed.card}
                 hinted={hintedTableau(pile, placed.index)}
-                onpick={placed.card.faceUp
-                  ? () => game.tap({ type: 'tableau', pile, index: placed.index })
+                onpointerdown={placed.card.faceUp
+                  ? (e) => startPress(e, { type: 'tableau', pile, index: placed.index })
                   : undefined}
               />
             </div>
@@ -121,6 +264,19 @@
       {/each}
     </div>
   </main>
+
+  {#if drag?.active}
+    <div class="drag-layer">
+      {#each drag.cards as c, i (c.id)}
+        <div
+          class="ghost"
+          style="left: {drag.x - drag.grabX}px; top: {drag.y - drag.grabY + i * 0.32 * ghostCardH}px; width: {ghostCardW}px; height: {ghostCardH}px"
+        >
+          <Card card={c} />
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   {#if game.won}
     <div class="win" role="dialog" aria-label="Gewonnen">
@@ -257,6 +413,32 @@
     color: #fff;
     background: rgba(255, 255, 255, 0.12);
     font-size: calc(var(--card-w) * 0.55);
+  }
+
+  .legal::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: calc(var(--card-w) * 0.09);
+    box-shadow: 0 0 0 4px rgba(255, 214, 10, 0.85);
+    pointer-events: none;
+    z-index: 40;
+  }
+  .drag-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 300;
+  }
+  .ghost {
+    position: fixed;
+    transform: scale(1.04);
+    filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ghost {
+      transform: none;
+    }
   }
 
   /* Win overlay */

@@ -88,3 +88,29 @@ test('settings: switching to drag mode persists across reload', async ({ page })
   await page.getByRole('button', { name: 'Instellingen' }).click()
   await expect(page.getByRole('button', { name: /Slepen/ })).toHaveClass(/selected/)
 })
+
+test('drag mode: dragging a card onto a legal pile moves it', async ({ page }) => {
+  // Seed 1: the 4 of clubs (top of column 4) legally moves onto column 6.
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+  // Enable drag mode via settings.
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: /Slepen/ }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+
+  const cols = page.getByTestId('tableau-col')
+  await expect(cols.nth(5).getByRole('button', { name: '4 clubs' })).toHaveCount(0)
+
+  const from = page.getByRole('button', { name: '4 clubs' })
+  const to = cols.nth(5)
+  const a = await from.boundingBox()
+  const b = await to.boundingBox()
+  if (!a || !b) throw new Error('missing boxes')
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
+  await page.mouse.down()
+  // Move in steps so pointermove fires and the threshold is crossed.
+  await page.mouse.move(b.x + b.width / 2, b.y + 20, { steps: 8 })
+  await page.mouse.up()
+
+  await expect(cols.nth(5).getByRole('button', { name: '4 clubs' })).toHaveCount(1)
+})
