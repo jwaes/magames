@@ -10,6 +10,20 @@
   unicode-range: U+2660-2667;
 }
 
+/* Two bundled, digit-only faces for the card rank ("Cijfers" setting). Both are
+   subset to just A J Q K 0-9, so a few KB each and fully offline. Applied only to
+   the rank via the --rank-font variable, so they never touch the suit glyphs. */
+@font-face {
+  font-family: 'CardNumHelder'; /* Atkinson Hyperlegible (Braille Institute, OFL) — low-vision */
+  src: url('./lib/fonts/num-helder.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CardNumKlassiek'; /* Roboto Slab (Google, Apache) — classic slab index */
+  src: url('./lib/fonts/num-klassiek.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   font-family:
     'CardSuits',
@@ -20,6 +34,9 @@
     sans-serif;
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
+  /* Default rank font — mirrors the default 'helder' setting; overridden at
+     runtime by Solitaire based on the user's choice. */
+  --rank-font: 'CardNumHelder', system-ui, sans-serif;
 }
 
 * {

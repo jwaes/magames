@@ -73,6 +73,7 @@
     font-weight: 800;
   }
   .rank {
+    font-family: var(--rank-font);
     font-size: calc(var(--card-w) * 0.46);
     font-variant-numeric: tabular-nums;
   }

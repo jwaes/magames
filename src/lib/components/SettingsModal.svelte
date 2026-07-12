@@ -72,6 +72,37 @@
     </section>
 
     <section>
+      <h3>Cijfers</h3>
+      <p class="hint">Welk lettertype op de kaarten het makkelijkst leest.</p>
+      <div class="choices">
+        <button
+          class="fontpick f-standaard"
+          class:selected={settings.rankFont === 'standaard'}
+          onclick={() => settings.setRankFont('standaard')}
+        >
+          <span class="sample" aria-hidden="true">A K 10</span>
+          <strong>Standaard</strong>
+        </button>
+        <button
+          class="fontpick f-helder"
+          class:selected={settings.rankFont === 'helder'}
+          onclick={() => settings.setRankFont('helder')}
+        >
+          <span class="sample" aria-hidden="true">A K 10</span>
+          <strong>Helder</strong>
+        </button>
+        <button
+          class="fontpick f-klassiek"
+          class:selected={settings.rankFont === 'klassiek'}
+          onclick={() => settings.setRankFont('klassiek')}
+        >
+          <span class="sample" aria-hidden="true">A K 10</span>
+          <strong>Klassiek</strong>
+        </button>
+      </div>
+    </section>
+
+    <section>
       <h3>Geluid</h3>
       <button class="toggle" class:on={settings.sound} onclick={() => settings.toggleSound()}>
         <span>{settings.sound ? '🔊 Aan' : '🔇 Uit'}</span>
@@ -175,6 +206,22 @@
   .choices button.selected {
     border-color: #0b6b3a;
     background: #e8f6ee;
+  }
+  /* Each font choice previews itself in its own face. */
+  .fontpick .sample {
+    font-size: clamp(26px, 4.5vw, 38px);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .f-standaard .sample {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  .f-helder .sample {
+    font-family: 'CardNumHelder', system-ui, sans-serif;
+  }
+  .f-klassiek .sample {
+    font-family: 'CardNumKlassiek', Georgia, 'Times New Roman', serif;
   }
   .choices button.danger {
     border-color: #c81e28;
