@@ -13,6 +13,7 @@ import {
   isWon,
   isStuck,
   nextAutoFinishMove,
+  findHint,
   NUM_TABLEAU
 } from './solitaire'
 import { mulberry32 } from './cards'
@@ -234,5 +235,40 @@ describe('isStuck', () => {
     s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4, 5].map((r) => card('hearts', r as Rank))
     s.tableau[0] = [card('spades', 6)] // black 6 accepts red 5; no other move exists
     expect(isStuck(s)).toBe(false)
+  })
+})
+
+describe('findHint', () => {
+  it('prefers a foundation move above anything else', () => {
+    const s = emptyState()
+    // A lone Ace on the waste can go to its foundation.
+    s.waste = [card('spades', 1)]
+    // Plus a purely lateral tableau move (red 5 -> another black 6) that we must NOT prefer.
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    s.tableau[1] = [card('clubs', 6)]
+    expect(findHint(s)).toEqual({ type: 'waste' })
+  })
+
+  it('hints a tableau move that uncovers a face-down card', () => {
+    const s = emptyState()
+    s.tableau[0] = [card('clubs', 9, false), card('hearts', 5)] // face-down under a red 5
+    s.tableau[1] = [card('spades', 6)] // black 6 accepts the red 5
+    expect(findHint(s)).toEqual({ type: 'tableau', pile: 0, index: 1 })
+  })
+
+  it('does NOT hint a pointless lateral move (returns null)', () => {
+    const s = emptyState()
+    // Red 5 sits on a black 6 with nothing hidden beneath; moving it to an
+    // equivalent black 6 reveals nothing and must not be suggested.
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    s.tableau[1] = [card('clubs', 6)]
+    expect(findHint(s)).toBeNull()
+  })
+
+  it('hints a waste card that can join the tableau', () => {
+    const s = emptyState()
+    s.waste = [card('hearts', 5)] // red 5
+    s.tableau[0] = [card('spades', 6)] // black 6 accepts it
+    expect(findHint(s)).toEqual({ type: 'waste' })
   })
 })

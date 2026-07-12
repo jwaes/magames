@@ -261,6 +261,49 @@ export function nextAutoFinishMove(state: GameState): { src: Source; dest: Dest 
   return null
 }
 
+/** True when moving the run at this tableau source would flip a face-down card. */
+function uncoversCard(state: GameState, src: Source): boolean {
+  if (src.type !== 'tableau') return false
+  const below = state.tableau[src.pile][src.index - 1]
+  return src.index > 0 && below !== undefined && !below.faceUp
+}
+
+/** Every card the player could pick up right now (waste top + each face-up tableau card). */
+function allSources(state: GameState): Source[] {
+  const out: Source[] = []
+  if (state.waste.length) out.push({ type: 'waste' })
+  state.tableau.forEach((col, pile) => {
+    col.forEach((c, index) => {
+      if (c.faceUp) out.push({ type: 'tableau', pile, index })
+    })
+  })
+  return out
+}
+
+/**
+ * Suggest a genuinely *useful* move, or null if only pointless shuffles remain.
+ * A move earns a hint only if it makes progress, in priority order:
+ *   1. onto a foundation,
+ *   2. a waste card onto the tableau (uses a drawn card),
+ *   3. a tableau move that uncovers a face-down card.
+ * Lateral moves — e.g. shifting a red 5 from one black 6 to an equivalent black
+ * 6, revealing nothing — are deliberately never hinted.
+ */
+export function findHint(state: GameState): Source | null {
+  const sources = allSources(state)
+
+  for (const src of sources) {
+    if (autoDest(state, src)?.type === 'foundation') return src
+  }
+  for (const src of sources) {
+    if (src.type === 'waste' && autoDest(state, src)) return src
+  }
+  for (const src of sources) {
+    if (src.type === 'tableau' && uncoversCard(state, src) && autoDest(state, src)) return src
+  }
+  return null
+}
+
 /** Can this single card be placed anywhere right now (foundation or tableau)? */
 function placeableAnywhere(state: GameState, card: Card): boolean {
   const fIdx = SUITS.indexOf(card.suit)
