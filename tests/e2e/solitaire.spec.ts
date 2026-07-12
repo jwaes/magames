@@ -140,3 +140,22 @@ test('settings: swapping the layout moves the deck to the right', async ({ page 
   // After swapping, the deck is right of the foundations.
   expect((await stock.boundingBox())!.x).toBeGreaterThan((await foundation.boundingBox())!.x)
 })
+
+test('settings: choosing a number font changes the rank typeface', async ({ page }) => {
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+
+  const rankFont = () =>
+    page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--rank-font')
+    )
+
+  // Default is the low-vision "Helder" (Atkinson Hyperlegible) face.
+  expect(await rankFont()).toContain('CardNumHelder')
+
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: 'Klassiek' }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+
+  expect(await rankFont()).toContain('CardNumKlassiek')
+})

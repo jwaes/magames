@@ -1,6 +1,6 @@
 <script lang="ts">
   import { game } from '../stores/game.svelte'
-  import { settings } from '../stores/settings.svelte'
+  import { settings, type RankFont } from '../stores/settings.svelte'
   import { unlockAudio } from '../sound/sfx'
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
   import { NUM_TABLEAU, canMove, type Source, type Dest } from '../engine/solitaire'
@@ -8,6 +8,18 @@
   import { tick } from 'svelte'
 
   let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
+
+  // The rank ("Cijfers") font is a bundled, digit-only face swapped via a CSS
+  // variable so it reaches every card — including the fly-overlay clones, which
+  // inherit it from :root. The suit glyphs are untouched (own unicode-range).
+  const RANK_FONT_STACK: Record<RankFont, string> = {
+    standaard: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    helder: "'CardNumHelder', system-ui, sans-serif",
+    klassiek: "'CardNumKlassiek', Georgia, 'Times New Roman', serif"
+  }
+  $effect(() => {
+    document.documentElement.style.setProperty('--rank-font', RANK_FONT_STACK[settings.rankFont])
+  })
 
   const reduceMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches

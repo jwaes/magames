@@ -36,3 +36,27 @@ describe('settings.stockRight', () => {
     expect(again.settings.stockRight).toBe(true)
   })
 })
+
+describe('settings.rankFont', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('defaults to the low-vision "helder" face and persists a change', async () => {
+    const { settings } = await import('./settings.svelte')
+    expect(settings.rankFont).toBe('helder')
+    settings.setRankFont('klassiek')
+    expect(settings.rankFont).toBe('klassiek')
+
+    vi.resetModules()
+    const again = await import('./settings.svelte')
+    expect(again.settings.rankFont).toBe('klassiek')
+  })
+
+  it('ignores an unknown persisted value and falls back to "helder"', async () => {
+    localStorage.setItem('magames.settings.v1', JSON.stringify({ rankFont: 'bogus' }))
+    const { settings } = await import('./settings.svelte')
+    expect(settings.rankFont).toBe('helder')
+  })
+})

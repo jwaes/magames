@@ -6,16 +6,28 @@ const KEY = 'magames.settings.v1'
 
 export type Movement = 'tap' | 'drag'
 
+/** Font used for the card rank ("Cijfers"): system sans, low-vision, or slab serif. */
+export type RankFont = 'standaard' | 'helder' | 'klassiek'
+
+const RANK_FONTS: readonly RankFont[] = ['standaard', 'helder', 'klassiek']
+
 interface Persisted {
   drawCount: DrawCount
   sound: boolean
   movement: Movement
   /** When true the draw deck sits on the RIGHT and the foundations on the left. */
   stockRight: boolean
+  rankFont: RankFont
 }
 
 function load(): Persisted {
-  const fallback: Persisted = { drawCount: 1, sound: true, movement: 'tap', stockRight: false }
+  const fallback: Persisted = {
+    drawCount: 1,
+    sound: true,
+    movement: 'tap',
+    stockRight: false,
+    rankFont: 'helder'
+  }
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(KEY)
@@ -25,7 +37,10 @@ function load(): Persisted {
       drawCount: parsed.drawCount === 3 ? 3 : 1,
       sound: parsed.sound !== false,
       movement: parsed.movement === 'drag' ? 'drag' : 'tap',
-      stockRight: parsed.stockRight === true
+      stockRight: parsed.stockRight === true,
+      rankFont: RANK_FONTS.includes(parsed.rankFont as RankFont)
+        ? (parsed.rankFont as RankFont)
+        : 'helder'
     }
   } catch {
     return fallback
@@ -37,6 +52,7 @@ class Settings {
   sound = $state(true)
   movement = $state<Movement>('tap')
   stockRight = $state(false)
+  rankFont = $state<RankFont>('helder')
 
   constructor() {
     const p = load()
@@ -44,6 +60,7 @@ class Settings {
     this.sound = p.sound
     this.movement = p.movement
     this.stockRight = p.stockRight
+    this.rankFont = p.rankFont
   }
 
   private persist() {
@@ -52,7 +69,8 @@ class Settings {
       drawCount: this.drawCount,
       sound: this.sound,
       movement: this.movement,
-      stockRight: this.stockRight
+      stockRight: this.stockRight,
+      rankFont: this.rankFont
     }
     try {
       localStorage.setItem(KEY, JSON.stringify(data))
@@ -78,6 +96,11 @@ class Settings {
 
   setStockRight(v: boolean) {
     this.stockRight = v
+    this.persist()
+  }
+
+  setRankFont(f: RankFont) {
+    this.rankFont = f
     this.persist()
   }
 }
