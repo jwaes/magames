@@ -22,3 +22,39 @@ test('a matching swap clears tiles and raises the score', async ({ page }) => {
   // The swap resolves asynchronously (explode → fall animation); the score rises.
   await expect(score).not.toHaveText('0', { timeout: 3000 })
 })
+
+test('the board fills the viewport as a square with no overflow (both orientations, largest grid)', async ({
+  page
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /Drie op een rij/ }).click()
+  await expect(page.getByTestId('match3-board')).toBeVisible()
+
+  const fits = async () => {
+    const m = await page.evaluate(() => {
+      const de = document.documentElement
+      const board = document.querySelector('[data-testid="match3-board"]')!.getBoundingClientRect()
+      return {
+        ovX: de.scrollWidth - de.clientWidth,
+        ovY: de.scrollHeight - de.clientHeight,
+        w: board.width,
+        h: board.height
+      }
+    })
+    // Nothing spills off-screen in either axis…
+    expect(m.ovX).toBeLessThanOrEqual(1)
+    expect(m.ovY).toBeLessThanOrEqual(1)
+    // …the board is square and actually sized (not collapsed).
+    expect(Math.abs(m.w - m.h)).toBeLessThanOrEqual(1)
+    expect(m.w).toBeGreaterThan(200)
+  }
+
+  await fits()
+
+  // The largest grid (8×8) must fit just as well.
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: '8 × 8' }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+  await expect(page.locator('[data-cell]')).toHaveCount(64)
+  await fits()
+})
