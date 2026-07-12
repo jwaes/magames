@@ -70,6 +70,8 @@
     flex-direction: column;
     align-items: center;
     line-height: 0.92;
+    /* A little breathing room so the rank and the suit glyph don't touch. */
+    gap: calc(var(--card-w) * 0.06);
     font-weight: 800;
   }
   .rank {

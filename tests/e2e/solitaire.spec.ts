@@ -159,3 +159,31 @@ test('settings: choosing a number font changes the rank typeface', async ({ page
 
   expect(await rankFont()).toContain('CardNumKlassiek')
 })
+
+test('drag mode: the dragged card is hidden in its pile (no visible duplicate)', async ({ page }) => {
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: /Slepen/ }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+
+  const card = page.getByRole('button', { name: '4 clubs' })
+  // The .stacked wrapper carries the opacity that hides the original while dragging.
+  const holder = page.locator('.stacked', { has: card })
+  await expect(holder).toHaveCSS('opacity', '1') // fully visible before any drag
+
+  const box = (await card.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  // Move past the drag threshold and hold (do not release).
+  await page.mouse.move(box.x + 120, box.y + 140, { steps: 10 })
+
+  // A single ghost now follows the pointer, and the original is invisible —
+  // so you can see the card beneath instead of a duplicate.
+  await expect(page.locator('.ghost')).toHaveCount(1)
+  await expect(holder).toHaveCSS('opacity', '0')
+
+  await page.mouse.up()
+  // After dropping, nothing stays hidden.
+  await expect(page.locator('.ghost')).toHaveCount(0)
+})

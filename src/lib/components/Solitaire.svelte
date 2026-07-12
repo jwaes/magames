@@ -200,6 +200,15 @@
   }
   let drag = $state<DragState | null>(null)
 
+  // Cards that must be invisible in their pile: those mid-flight, plus the cards
+  // being dragged (the ghost follows the pointer, so the originals must hide —
+  // otherwise you see a duplicate and can't tell what's underneath).
+  const hiddenIds = $derived.by(() => {
+    const set = new Set(flyingIds)
+    if (drag?.active) for (const c of drag.cards) set.add(c.id)
+    return set
+  })
+
   // Piles that the current drag can legally land on (for highlighting).
   const legalTargets = $derived.by(() => {
     const set = new Set<string>()
@@ -397,7 +406,7 @@
       <div class="slot pile" data-testid="waste">
         {#if game.state.waste.length}
           {@const top = game.state.waste[game.state.waste.length - 1]}
-          <div class="card-holder" data-cid={top.id} style:opacity={flyingIds.has(top.id) ? '0' : ''}>
+          <div class="card-holder" data-cid={top.id} style:opacity={hiddenIds.has(top.id) ? '0' : ''}>
             <Card
               card={top}
               hinted={game.hint?.type === 'waste'}
@@ -415,7 +424,7 @@
         <div class="slot pile" data-drop-foundation={fi} class:legal={legalTargets.has(`f${fi}`)}>
           {#if foundation.length}
             {@const ftop = foundation[foundation.length - 1]}
-            <div class="card-holder" data-cid={ftop.id} style:opacity={flyingIds.has(ftop.id) ? '0' : ''}>
+            <div class="card-holder" data-cid={ftop.id} style:opacity={hiddenIds.has(ftop.id) ? '0' : ''}>
               <Card card={ftop} onpick={() => !autoFinishing && animatedTap({ type: 'foundation', pile: fi })} />
             </div>
           {:else}
@@ -444,7 +453,7 @@
               class="stacked"
               data-cid={placed.card.id}
               style="top: calc(var(--card-h) * {placed.top})"
-              style:opacity={flyingIds.has(placed.card.id) ? '0' : ''}
+              style:opacity={hiddenIds.has(placed.card.id) ? '0' : ''}
             >
               <Card
                 card={placed.card}
