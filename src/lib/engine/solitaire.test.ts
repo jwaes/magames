@@ -194,6 +194,24 @@ describe('winning', () => {
     expect(step).not.toBeNull()
     expect(step!.dest).toEqual({ type: 'foundation', pile: SUITS.indexOf('hearts') })
   })
+
+  it('repeated nextAutoFinishMove drives an unblocked board all the way to a win', () => {
+    // Each suit in its own column, face up, Ace on top (last) so it peels off
+    // A, 2, 3 … K straight onto the foundation — exactly what "Afmaken" sweeps.
+    let s = emptyState()
+    SUITS.forEach((suit, i) => {
+      s.tableau[i] = Array.from({ length: 13 }, (_, k) => card(suit, (13 - k) as Rank))
+    })
+
+    let steps = 0
+    for (let m = nextAutoFinishMove(s); m; m = nextAutoFinishMove(s)) {
+      s = move(s, m.src, m.dest)!
+      steps++
+    }
+
+    expect(steps).toBe(52)
+    expect(isWon(s)).toBe(true)
+  })
 })
 
 describe('isStuck', () => {
