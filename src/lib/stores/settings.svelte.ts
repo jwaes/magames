@@ -10,10 +10,12 @@ interface Persisted {
   drawCount: DrawCount
   sound: boolean
   movement: Movement
+  /** When true the draw deck sits on the RIGHT and the foundations on the left. */
+  stockRight: boolean
 }
 
 function load(): Persisted {
-  const fallback: Persisted = { drawCount: 1, sound: true, movement: 'tap' }
+  const fallback: Persisted = { drawCount: 1, sound: true, movement: 'tap', stockRight: false }
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(KEY)
@@ -22,7 +24,8 @@ function load(): Persisted {
     return {
       drawCount: parsed.drawCount === 3 ? 3 : 1,
       sound: parsed.sound !== false,
-      movement: parsed.movement === 'drag' ? 'drag' : 'tap'
+      movement: parsed.movement === 'drag' ? 'drag' : 'tap',
+      stockRight: parsed.stockRight === true
     }
   } catch {
     return fallback
@@ -33,17 +36,24 @@ class Settings {
   drawCount = $state<DrawCount>(1)
   sound = $state(true)
   movement = $state<Movement>('tap')
+  stockRight = $state(false)
 
   constructor() {
     const p = load()
     this.drawCount = p.drawCount
     this.sound = p.sound
     this.movement = p.movement
+    this.stockRight = p.stockRight
   }
 
   private persist() {
     if (typeof localStorage === 'undefined') return
-    const data: Persisted = { drawCount: this.drawCount, sound: this.sound, movement: this.movement }
+    const data: Persisted = {
+      drawCount: this.drawCount,
+      sound: this.sound,
+      movement: this.movement,
+      stockRight: this.stockRight
+    }
     try {
       localStorage.setItem(KEY, JSON.stringify(data))
     } catch {
@@ -63,6 +73,11 @@ class Settings {
 
   setMovement(m: Movement) {
     this.movement = m
+    this.persist()
+  }
+
+  setStockRight(v: boolean) {
+    this.stockRight = v
     this.persist()
   }
 }

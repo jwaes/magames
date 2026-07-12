@@ -18,3 +18,21 @@ describe('settings.movement', () => {
     expect(again.settings.movement).toBe('drag')
   })
 })
+
+describe('settings.stockRight', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('defaults to false (deck left) and persists a change', async () => {
+    const { settings } = await import('./settings.svelte')
+    expect(settings.stockRight).toBe(false)
+    settings.setStockRight(true)
+    expect(settings.stockRight).toBe(true)
+
+    vi.resetModules()
+    const again = await import('./settings.svelte')
+    expect(again.settings.stockRight).toBe(true)
+  })
+})

@@ -59,6 +59,19 @@
     </section>
 
     <section>
+      <h3>Indeling</h3>
+      <p class="hint">Aan welke kant de stapel en de vier doelen staan.</p>
+      <div class="choices">
+        <button class:selected={!settings.stockRight} onclick={() => settings.setStockRight(false)}>
+          <strong>Stapel links</strong><span>Doelen rechts</span>
+        </button>
+        <button class:selected={settings.stockRight} onclick={() => settings.setStockRight(true)}>
+          <strong>Stapel rechts</strong><span>Doelen links</span>
+        </button>
+      </div>
+    </section>
+
+    <section>
       <h3>Geluid</h3>
       <button class="toggle" class:on={settings.sound} onclick={() => settings.toggleSound()}>
         <span>{settings.sound ? '🔊 Aan' : '🔇 Uit'}</span>
