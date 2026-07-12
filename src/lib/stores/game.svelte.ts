@@ -9,6 +9,7 @@ import {
   isWon,
   isStuck,
   nextAutoFinishMove,
+  findHint,
   type GameState,
   type Source,
   type Dest,
@@ -148,27 +149,7 @@ class SolitaireGame {
   }
 
   #findHint(): Source | null {
-    // Prefer a card that can advance a foundation.
-    const sources = this.#allSources()
-    for (const src of sources) {
-      const dest = autoDest(this.state, src)
-      if (dest?.type === 'foundation') return src
-    }
-    for (const src of sources) {
-      if (autoDest(this.state, src)) return src
-    }
-    return null
-  }
-
-  #allSources(): Source[] {
-    const out: Source[] = []
-    if (this.state.waste.length) out.push({ type: 'waste' })
-    this.state.tableau.forEach((col, pile) => {
-      col.forEach((c, index) => {
-        if (c.faceUp) out.push({ type: 'tableau', pile, index })
-      })
-    })
-    return out
+    return findHint(this.state)
   }
 
   /** Sweep an unblocked board to the foundations, one animated step at a time. */
