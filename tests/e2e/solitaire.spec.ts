@@ -123,3 +123,20 @@ test('stats screen opens from home and shows tiles', async ({ page }) => {
   await page.getByRole('button', { name: 'Terug' }).click()
   await expect(page.getByRole('heading', { name: 'Kaartspellen' })).toBeVisible()
 })
+
+test('settings: swapping the layout moves the deck to the right', async ({ page }) => {
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+  const stock = page.getByTestId('stock')
+  const foundation = page.locator('[data-drop-foundation="0"]')
+
+  // By default the deck (stock) sits left of the foundations.
+  expect((await stock.boundingBox())!.x).toBeLessThan((await foundation.boundingBox())!.x)
+
+  await page.getByRole('button', { name: 'Instellingen' }).click()
+  await page.getByRole('button', { name: /Stapel rechts/ }).click()
+  await page.getByRole('button', { name: 'Klaar' }).click()
+
+  // After swapping, the deck is right of the foundations.
+  expect((await stock.boundingBox())!.x).toBeGreaterThan((await foundation.boundingBox())!.x)
+})

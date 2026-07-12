@@ -314,8 +314,23 @@
 
   <!-- Board -->
   <main class="board" data-testid="board">
+    <!-- Top row. The draw deck (stock+waste) and the foundations can swap sides
+         via the "Indeling" setting; the middle gap stays put. -->
     <div class="top-row">
-      <!-- Stock -->
+      {#if settings.stockRight}
+        {@render foundationPiles()}
+        <div class="gap"></div>
+        {@render stockPile()}
+        {@render wastePile()}
+      {:else}
+        {@render stockPile()}
+        {@render wastePile()}
+        <div class="gap"></div>
+        {@render foundationPiles()}
+      {/if}
+    </div>
+
+    {#snippet stockPile()}
       <div class="slot pile" data-testid="stock">
         {#if game.state.stock.length}
           <Card card={{ id: 'stock', suit: 'spades', rank: 1, faceUp: false }} onpick={drawDeck} />
@@ -323,8 +338,9 @@
           <button class="empty recycle" onclick={drawDeck} aria-label="Opnieuw delen">↺</button>
         {/if}
       </div>
+    {/snippet}
 
-      <!-- Waste -->
+    {#snippet wastePile()}
       <div class="slot pile" data-testid="waste">
         {#if game.state.waste.length}
           {@const top = game.state.waste[game.state.waste.length - 1]}
@@ -339,10 +355,9 @@
           <div class="empty"></div>
         {/if}
       </div>
+    {/snippet}
 
-      <div class="gap"></div>
-
-      <!-- Foundations -->
+    {#snippet foundationPiles()}
       {#each game.state.foundations as foundation, fi}
         <div class="slot pile" data-drop-foundation={fi} class:legal={legalTargets.has(`f${fi}`)}>
           {#if foundation.length}
@@ -355,7 +370,7 @@
           {/if}
         </div>
       {/each}
-    </div>
+    {/snippet}
 
     <!-- Tableau -->
     <div class="tableau">
