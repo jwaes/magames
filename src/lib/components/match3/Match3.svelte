@@ -11,6 +11,29 @@
 
   let showSettings = $state(false)
 
+  // The board is sized to the largest square that fits the *measured* available
+  // area, so it always fills the screen without overflowing — at any grid size
+  // and in either orientation. Measuring beats a hard-coded viewport formula:
+  // it accounts for the real toolbar height and safe-area insets on any device.
+  let boardWrap = $state<HTMLElement | null>(null)
+  let boardPx = $state(0)
+  const cellPx = $derived(match3.board.cols > 0 ? boardPx / match3.board.cols : 0)
+
+  $effect(() => {
+    const el = boardWrap
+    if (!el) return
+    const measure = () => {
+      const cs = getComputedStyle(el)
+      const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      boardPx = Math.max(0, Math.floor(Math.min(w, h)))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
+
   const FALL_BASE = 240
   const EXPLODE_BASE = 200
   const FLASH_BASE = 360
@@ -75,12 +98,12 @@
     <button class="tool" onclick={() => (showSettings = true)} aria-label="Instellingen">⚙️<span>Meer</span></button>
   </header>
 
-  <main class="board-wrap">
+  <main class="board-wrap" bind:this={boardWrap}>
     <div
       class="board"
       data-testid="match3-board"
-      style="--n: {match3.board.cols}; --burst: {EXPLODE_BASE * match3.animMult}ms; --flash: {FLASH_BASE *
-        match3.animMult}ms"
+      style="--n: {match3.board.cols}; --cell: {cellPx}px; width: {boardPx}px; height: {boardPx}px; --burst: {EXPLODE_BASE *
+        match3.animMult}ms; --flash: {FLASH_BASE * match3.animMult}ms"
     >
       <!-- Click backdrop: one cell per position; selection stays position-based. -->
       {#each match3.board.cells as row, r}
@@ -190,12 +213,9 @@
     display: grid;
     grid-template-columns: repeat(var(--n), 1fr);
     grid-template-rows: repeat(var(--n), 1fr);
-    /* Explicit width AND height (not aspect-ratio) so descendant percentage
-       heights resolve — otherwise the tile faces collapse. */
-    width: min(96vw, calc(100dvh - 120px));
-    height: min(96vw, calc(100dvh - 120px));
-    /* Cell size as a length, for scaling the tile symbols. */
-    --cell: calc(min(96vw, 100dvh - 120px) / var(--n));
+    /* width, height and --cell are set inline from the measured available area
+       (see the ResizeObserver in the script). Explicit px width AND height (not
+       aspect-ratio) so descendant percentage heights resolve. */
   }
   .cell {
     padding: 0;
