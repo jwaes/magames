@@ -5,7 +5,7 @@
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
   import { NUM_TABLEAU, canMove, nextAutoFinishMove, type Source, type Dest } from '../engine/solitaire'
   import Card from './Card.svelte'
-  import { tick } from 'svelte'
+  import { tick, onDestroy } from 'svelte'
 
   let { onhome, onsettings }: { onhome: () => void; onsettings: () => void } = $props()
 
@@ -99,6 +99,12 @@
 
   // Sweep the finished board to the foundations, gliding one card at a time.
   let autoFinishing = $state(false)
+  // Set on unmount so a running sweep stops instead of driving the shared game
+  // singleton to a "win" in the background after the player has left the board.
+  let unmounted = false
+  onDestroy(() => {
+    unmounted = true
+  })
   async function runAutoFinish() {
     if (autoFinishing) return
     if (reduceMotion) {
@@ -106,10 +112,14 @@
       return
     }
     autoFinishing = true
-    for (let m = nextAutoFinishMove(game.state); m; m = nextAutoFinishMove(game.state)) {
-      await animatedTap(m.src)
+    try {
+      for (let m = nextAutoFinishMove(game.state); m && !unmounted; m = nextAutoFinishMove(game.state)) {
+        await animatedTap(m.src)
+      }
+    } finally {
+      // Never leave the board locked, even if a glide unexpectedly throws.
+      autoFinishing = false
     }
-    autoFinishing = false
   }
 
   // ── Deck-draw deal & flip ────────────────────────────────────────────
@@ -209,6 +219,8 @@
   }
 
   function startPress(e: PointerEvent, src: Source) {
+    // Ignore input while the auto-finish sweep is gliding cards home.
+    if (autoFinishing) return
     // Tap mode: behave as a pure tap on release; no drag bookkeeping needed.
     if (settings.movement === 'tap') {
       animatedTap(src)
@@ -328,8 +340,14 @@
   <!-- Toolbar -->
   <header class="toolbar">
     <button class="tool" onclick={onhome} aria-label="Terug naar menu">🏠<span>Menu</span></button>
-    <button class="tool" onclick={() => game.newGame()} aria-label="Nieuw spel">🔄<span>Nieuw</span></button>
-    <button class="tool" onclick={() => game.undo()} disabled={!game.canUndo} aria-label="Zet terugnemen"
+    <button class="tool" onclick={() => game.newGame()} disabled={autoFinishing} aria-label="Nieuw spel"
+      >🔄<span>Nieuw</span></button
+    >
+    <button
+      class="tool"
+      onclick={() => game.undo()}
+      disabled={!game.canUndo || autoFinishing}
+      aria-label="Zet terugnemen"
       >↩️<span>Terug</span></button
     >
     <button class="tool" onclick={() => game.showHint()} aria-label="Hint">💡<span>Hint</span></button>
@@ -398,7 +416,7 @@
           {#if foundation.length}
             {@const ftop = foundation[foundation.length - 1]}
             <div class="card-holder" data-cid={ftop.id} style:opacity={flyingIds.has(ftop.id) ? '0' : ''}>
-              <Card card={ftop} onpick={() => animatedTap({ type: 'foundation', pile: fi })} />
+              <Card card={ftop} onpick={() => !autoFinishing && animatedTap({ type: 'foundation', pile: fi })} />
             </div>
           {:else}
             <div class="empty suit">{SUIT_SYMBOL[SUITS[fi]]}</div>
