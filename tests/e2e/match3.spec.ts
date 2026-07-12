@@ -4,20 +4,27 @@ test('Match-3 is launchable from home and renders a board', async ({ page }) => 
   await page.goto('/')
   await page.getByRole('button', { name: /Drie op een rij/ }).click()
   await expect(page.getByTestId('match3-board')).toBeVisible()
-  // 7x7 default → 49 tiles
-  await expect(page.locator('[data-cell]')).toHaveCount(49)
+  // 6x6 default → 36 tiles
+  await expect(page.locator('[data-cell]')).toHaveCount(36)
 })
 
 test('a matching swap clears tiles and raises the score', async ({ page }) => {
-  // Seed 3: swapping cell (0,0) with (1,0) is a legal move that clears a match.
   await page.goto('/?seed=3')
   await page.getByRole('button', { name: /Drie op een rij/ }).click()
   await expect(page.getByTestId('match3-board')).toBeVisible()
   const score = page.locator('.stat', { hasText: 'Score' }).locator('strong')
   await expect(score).toHaveText('0')
 
-  await page.locator('[data-cell="0-0"]').click()
-  await page.locator('[data-cell="1-0"]').click()
+  // Ask the game for a valid move, then play the two cells it highlights. Clicks
+  // fall through the pointer-events:none tile layer to the cell buttons beneath,
+  // so this works whatever the seed dealt (no brittle hard-coded coordinates).
+  await page.getByRole('button', { name: 'Hint' }).click()
+  const hinted = page.locator('.tile-slot.hinted')
+  await expect(hinted).toHaveCount(2)
+  const a = (await hinted.nth(0).boundingBox())!
+  const b = (await hinted.nth(1).boundingBox())!
+  await page.mouse.click(a.x + a.width / 2, a.y + a.height / 2)
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
 
   // The swap resolves asynchronously (explode → fall animation); the score rises.
   await expect(score).not.toHaveText('0', { timeout: 3000 })

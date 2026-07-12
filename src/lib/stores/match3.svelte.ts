@@ -30,14 +30,16 @@ interface PersistedSettings {
 }
 
 function loadSettings(): PersistedSettings {
-  const fallback: PersistedSettings = { gridSize: 7, movement: 'tap', sound: true, speed: 'rustig' }
+  // 6×6 is the default: fewest, largest tiles — clearest for low vision.
+  const fallback: PersistedSettings = { gridSize: 6, movement: 'tap', sound: true, speed: 'rustig' }
   if (typeof localStorage === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
     if (!raw) return fallback
     const p = JSON.parse(raw) as Partial<PersistedSettings>
     return {
-      gridSize: p.gridSize === 6 || p.gridSize === 8 ? p.gridSize : 7,
+      // Keep any valid saved choice (6/7/8); only fall back to 6 when unset/invalid.
+      gridSize: p.gridSize === 6 || p.gridSize === 7 || p.gridSize === 8 ? p.gridSize : 6,
       movement: p.movement === 'swipe' ? 'swipe' : 'tap',
       sound: p.sound !== false,
       speed: p.speed === 'normaal' || p.speed === 'snel' ? p.speed : 'rustig'
@@ -60,11 +62,11 @@ function loadBest(): number {
 }
 
 class Match3 {
-  gridSize = $state<GridSize>(7)
+  gridSize = $state<GridSize>(6)
   movement = $state<Movement>('tap')
   sound = $state(true)
   speed = $state<Speed>('rustig')
-  board = $state<Board>(fillBoard(7, 7, Math.random))
+  board = $state<Board>(fillBoard(6, 6, Math.random))
   score = $state(0)
   best = $state(0)
   selected = $state<Pos | null>(null)
