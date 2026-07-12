@@ -3,7 +3,7 @@
   import { settings, type RankFont } from '../stores/settings.svelte'
   import { unlockAudio } from '../sound/sfx'
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
-  import { NUM_TABLEAU, canMove, type Source, type Dest } from '../engine/solitaire'
+  import { NUM_TABLEAU, canMove, nextAutoFinishMove, type Source, type Dest } from '../engine/solitaire'
   import Card from './Card.svelte'
   import { tick } from 'svelte'
 
@@ -86,10 +86,30 @@
     await tick()
     // Two frames so the browser paints the "from" position before transitioning.
     requestAnimationFrame(() => requestAnimationFrame(() => fly && (fly = { ...fly, go: true })))
-    window.setTimeout(() => {
-      fly = null
-      flyingIds = new Set()
-    }, MOVE_MS + 40)
+    // Resolve once the glide has finished so callers (e.g. auto-finish) can
+    // chain the next card without the overlays overlapping.
+    await new Promise<void>((resolve) =>
+      window.setTimeout(() => {
+        fly = null
+        flyingIds = new Set()
+        resolve()
+      }, MOVE_MS + 40)
+    )
+  }
+
+  // Sweep the finished board to the foundations, gliding one card at a time.
+  let autoFinishing = $state(false)
+  async function runAutoFinish() {
+    if (autoFinishing) return
+    if (reduceMotion) {
+      game.autoFinish() // instant stepped sweep, no animation
+      return
+    }
+    autoFinishing = true
+    for (let m = nextAutoFinishMove(game.state); m; m = nextAutoFinishMove(game.state)) {
+      await animatedTap(m.src)
+    }
+    autoFinishing = false
   }
 
   // ── Deck-draw deal & flip ────────────────────────────────────────────
@@ -314,8 +334,11 @@
     >
     <button class="tool" onclick={() => game.showHint()} aria-label="Hint">💡<span>Hint</span></button>
     {#if game.canAutoFinish}
-      <button class="tool accent" onclick={() => game.autoFinish()} aria-label="Automatisch afmaken"
-        >✨<span>Afmaken</span></button
+      <button
+        class="tool accent"
+        onclick={runAutoFinish}
+        disabled={autoFinishing}
+        aria-label="Automatisch afmaken">✨<span>Afmaken</span></button
       >
     {/if}
     <div class="spacer"></div>
