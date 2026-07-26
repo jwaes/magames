@@ -363,7 +363,9 @@ export function findHint(state: GameState): Hint | null {
 function drawCanHelp(state: GameState): boolean {
   const deckSize = state.stock.length + state.waste.length
   let s = state
-  // deckSize + 1 turns is enough to complete any cycle (draw-1 is the slowest).
+  // deckSize + 1 turns is exactly enough, not generously so: the draw-1 worst
+  // case needs every stock card surfaced, then a recycle, then every card that
+  // started in the waste — so the final iteration is load-bearing. Don't trim it.
   for (let i = 0; i <= deckSize; i++) {
     const next = draw(s)
     if (!next) return false

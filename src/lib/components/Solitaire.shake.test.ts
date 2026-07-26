@@ -109,6 +109,9 @@ describe('recycling the waste', () => {
     render(Solitaire, { props: { onhome: () => {}, onsettings: () => {} } })
 
     await fireEvent.click(screen.getByRole('button', { name: 'Opnieuw delen' }))
+    // Wait a frame first: the class is applied one frame after a refusal, so
+    // asserting immediately would pass even if the refusal HAD fired.
+    await nextFrame()
 
     expect(screen.getByTestId('stock')).not.toHaveClass('shake')
     // …and the recycle really happened: the waste is now back in the stock.

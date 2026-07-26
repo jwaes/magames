@@ -750,6 +750,12 @@
     .slot.deck-hint {
       box-shadow: 0 0 0 calc(var(--card-w) * 0.06) rgba(255, 214, 10, 0.9);
     }
+    /* Must have a substitute, like the card does. Otherwise a refused deck tap
+       is completely silent here: no wiggle, no buzz (iOS has no vibrate), and
+       nothing at all if the sound is off. */
+    .slot.shake {
+      box-shadow: 0 0 0 calc(var(--card-w) * 0.06) rgba(190, 30, 30, 0.8);
+    }
   }
   .stacked {
     position: absolute;
