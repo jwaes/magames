@@ -325,9 +325,7 @@ export function findHint(state: GameState): Hint | null {
   if (productive) return { kind: 'move', src: productive }
 
   // Nothing on the board helps — would turning the deck bring up something playable?
-  for (const c of [...state.stock, ...state.waste]) {
-    if (placeableAnywhere(state, c)) return { kind: 'draw' }
-  }
+  if (drawCanHelp(state)) return { kind: 'draw' }
 
   // Last resort: take a card back off a foundation, but only when it unblocks a
   // DIFFERENT card. Without that guard the "unblocking" move found is putting the
@@ -337,14 +335,43 @@ export function findHint(state: GameState): Hint | null {
     if (pile.length === 0) continue
     const src: Source = { type: 'foundation', pile: f }
     const pulledId = pile[pile.length - 1].id
-    for (let q = 0; q < NUM_TABLEAU; q++) {
-      const next = move(state, src, { type: 'tableau', pile: q })
-      if (next && productiveSource(next, pulledId)) return { kind: 'move', src }
-    }
+    // Test the destination a tap would actually pick, not just any legal column,
+    // so the move the player makes is the one that was validated as unblocking.
+    const dest = autoDest(state, src)
+    if (!dest) continue
+    const next = move(state, src, dest)
+    if (next && productiveSource(next, pulledId)) return { kind: 'move', src }
   }
 
   if (isStuck(state)) return { kind: 'stuck' }
   return null
+}
+
+/**
+ * Could turning the deck ever surface a playable card?
+ *
+ * Not the same question as "is any card in the deck playable". Recycling
+ * preserves order (`draw` reverses the waste back into the stock), so on a board
+ * that cannot otherwise change, the waste tops cycle through a FIXED subset —
+ * with draw-3 that is only about a third of the deck, and the rest can never be
+ * reached. Simulating one full cycle and testing only the tops the player can
+ * actually get to is what keeps "turn the deck" from becoming an endless lie.
+ *
+ * Placement is tested against the original board, which is exactly the
+ * assumption that makes the cycle fixed: nothing else moves while drawing.
+ */
+function drawCanHelp(state: GameState): boolean {
+  const deckSize = state.stock.length + state.waste.length
+  let s = state
+  // deckSize + 1 turns is enough to complete any cycle (draw-1 is the slowest).
+  for (let i = 0; i <= deckSize; i++) {
+    const next = draw(s)
+    if (!next) return false
+    s = next
+    const top = s.waste[s.waste.length - 1]
+    if (top && placeableAnywhere(state, top)) return true
+  }
+  return false
 }
 
 /** Can this single card be placed anywhere right now (foundation or tableau)? */
@@ -384,9 +411,7 @@ export function isStuck(state: GameState): boolean {
     }
   }
 
-  for (const c of [...state.stock, ...state.waste]) {
-    if (placeableAnywhere(state, c)) return false
-  }
+  if (drawCanHelp(state)) return false
 
   for (let f = 0; f < state.foundations.length; f++) {
     if (state.foundations[f].length === 0) continue

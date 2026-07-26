@@ -53,6 +53,7 @@ class SolitaireGame {
     this.#history = []
     this.won = false
     this.stuck = false
+    this.hint = null
     this.hintDeck = false
     this.records = null
     this.seconds = 0

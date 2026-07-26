@@ -27,28 +27,40 @@
   const MOVE_MS = 190
   const SHAKE_MS = 250
 
-  // A refused move wiggles the card the player tapped and buzzes (where the
-  // device supports it — not on iOS). Only one card shakes at a time.
+  // A refused move wiggles the card the player tapped — or the deck, when `id`
+  // is null — and buzzes (where the device supports it; not on iOS). Only one
+  // thing shakes at a time.
   let shakeId = $state<string | null>(null)
   let shakeDeck = $state(false)
   let shakeTimer: ReturnType<typeof setTimeout> | null = null
+  let shakeFrame: number | null = null
+  // Bumped per refusal so a frame that ran late — the iPad was locked, say —
+  // can't re-apply a class a newer refusal has already cleared and leave it stuck on.
+  let shakeSeq = 0
+
+  function clearShake() {
+    shakeId = null
+    shakeDeck = false
+  }
 
   function rejectMove(id: string | null) {
     buzzInvalid()
     if (shakeTimer) clearTimeout(shakeTimer)
-    // Drop the class first so refusing the SAME card twice restarts the animation
-    // instead of being a no-op (the class never changed).
-    shakeId = null
-    shakeDeck = id === null
-    if (id !== null) {
-      requestAnimationFrame(() => {
-        shakeId = id
-      })
-    }
-    shakeTimer = setTimeout(() => {
-      shakeId = null
-      shakeDeck = false
-    }, SHAKE_MS)
+    if (shakeFrame !== null) cancelAnimationFrame(shakeFrame)
+    const seq = ++shakeSeq
+    // Drop the class first and re-apply it next frame: a CSS animation only
+    // restarts when the class actually leaves and comes back, so refusing the
+    // same target twice would otherwise be silent the second time.
+    clearShake()
+    shakeFrame = requestAnimationFrame(() => {
+      shakeFrame = null
+      if (seq !== shakeSeq) return
+      if (id === null) shakeDeck = true
+      else shakeId = id
+      shakeTimer = setTimeout(() => {
+        if (seq === shakeSeq) clearShake()
+      }, SHAKE_MS)
+    })
   }
 
   // ── Tap-to-move glide ────────────────────────────────────────────────
@@ -136,6 +148,7 @@
   onDestroy(() => {
     unmounted = true
     if (shakeTimer) clearTimeout(shakeTimer)
+    if (shakeFrame !== null) cancelAnimationFrame(shakeFrame)
   })
   async function runAutoFinish() {
     if (autoFinishing) return
@@ -473,6 +486,7 @@
             <div class="card-holder" data-cid={ftop.id} style:opacity={hiddenIds.has(ftop.id) ? '0' : ''}>
               <Card
                 card={ftop}
+                hinted={game.hint?.type === 'foundation' && game.hint.pile === fi}
                 shake={shakeId === ftop.id}
                 onpick={() => !autoFinishing && animatedTap({ type: 'foundation', pile: fi })}
               />

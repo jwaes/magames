@@ -239,6 +239,35 @@ describe('isStuck', () => {
     expect(isStuck(s)).toBe(true)
   })
 
+  it('is true when draw-3 can never surface the one playable card', () => {
+    const s = emptyState(3)
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    // Turning three at a time, the waste tops cycle 9♣ → 9♦ → 9♣ … forever
+    // (recycling preserves order), so the Ace can never be reached.
+    s.stock = [
+      card('diamonds', 9, false),
+      card('clubs', 9, false),
+      card('clubs', 1, false),
+      card('diamonds', 8, false)
+    ]
+    expect(isStuck(s)).toBe(true)
+  })
+
+  it('is false when draw-3 CAN surface the playable card', () => {
+    const s = emptyState(3)
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    // Same cards, Ace one place over: the very first turn of three tops it out.
+    s.stock = [
+      card('diamonds', 9, false),
+      card('clubs', 1, false),
+      card('clubs', 9, false),
+      card('diamonds', 8, false)
+    ]
+    expect(isStuck(s)).toBe(false)
+  })
+
   it('is false for a won game', () => {
     const s = emptyState()
     s.foundations = SUITS.map((suit) =>
@@ -315,6 +344,34 @@ describe('findHint', () => {
     s.tableau[0] = [card('spades', 2)]
     s.tableau[1] = [card('hearts', 2)]
     expect(findHint(s)).toEqual({ kind: 'stuck' })
+  })
+
+  it("does NOT say 'draw' when draw-3 can never turn up the playable card", () => {
+    const s = emptyState(3)
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    // Three at a time, the reachable waste tops cycle 9♣ → 9♦ → 9♣ … forever.
+    // Telling the player to keep drawing would be a lie: the game is over.
+    s.stock = [
+      card('diamonds', 9, false),
+      card('clubs', 9, false),
+      card('clubs', 1, false),
+      card('diamonds', 8, false)
+    ]
+    expect(findHint(s)).toEqual({ kind: 'stuck' })
+  })
+
+  it("says 'draw' when draw-3 CAN turn up the playable card", () => {
+    const s = emptyState(3)
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    s.stock = [
+      card('diamonds', 9, false),
+      card('clubs', 1, false),
+      card('clubs', 9, false),
+      card('diamonds', 8, false)
+    ]
+    expect(findHint(s)).toEqual({ kind: 'draw' })
   })
 
   it('suggests taking a card back off a foundation when that unblocks another card', () => {

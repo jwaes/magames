@@ -70,18 +70,36 @@ describe('showHint', () => {
     expect(game.hintDeck).toBe(false)
   })
 
-  it('clears a deck pulse on undo and on a new game', () => {
+  it('clears a deck pulse on undo', () => {
     const s = deadBoard()
     s.stock = [card('clubs', 1, false)]
     game.state = s
     game.drawStock() // so there is history to undo
     game.showHint()
-    game.hintDeck = true
     game.undo()
     expect(game.hintDeck).toBe(false)
+  })
 
-    game.hintDeck = true
+  // Both pulses must die with the deal that produced them. A hint left over
+  // from the previous game points at a card that is no longer there — on the
+  // new deal it lights up an unrelated card as "play me", usually one that
+  // cannot move at all.
+  it('clears both pulses on a new game', () => {
+    const s = deadBoard()
+    s.stock = [card('clubs', 1, false)]
+    game.state = s
+    game.showHint()
+    expect(game.hintDeck).toBe(true)
     game.newGame(1, 1)
     expect(game.hintDeck).toBe(false)
+
+    const alive = emptyState()
+    alive.waste = [card('hearts', 5)]
+    alive.tableau[0] = [card('spades', 6)]
+    game.state = alive
+    game.showHint()
+    expect(game.hint).not.toBeNull()
+    game.newGame(1, 1)
+    expect(game.hint).toBeNull()
   })
 })

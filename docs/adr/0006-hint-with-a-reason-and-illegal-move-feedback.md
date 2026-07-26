@@ -32,6 +32,15 @@ move for a **different** card. The different-card rule is load-bearing: without 
 "unblocking" move found is putting the same card straight back, and the hint suggests an
 infinite loop.
 
+**"Can the player reach it?", not "does it exist?"** Both the `draw` hint and `isStuck` now
+ask whether turning the deck can actually *surface* a playable card, via `drawCanHelp`, which
+simulates one full cycle. Recycling preserves order, so on a board that cannot otherwise
+change the waste tops form a fixed cycle — under **draw-3 roughly two thirds of the deck is
+unreachable**. Scanning every card instead would tell the player to keep drawing forever in a
+game that is already over. This closes the "may under-detect exotic draw-3 deadlocks"
+limitation that ADR 5 accepted; `isStuck` gets strictly more accurate and still never
+false-positives, because a reachable playable card returns `false` as before.
+
 **`stuck` is reachable from Hint.** `showHint()` sets `game.stuck`, so the existing calm
 "Geen zetten meer mogelijk" overlay appears when the player asks, not only after a move.
 This adds no new detection and cannot false-positive: it is the same `isStuck` predicate.
@@ -53,6 +62,13 @@ red flash instead of motion — less instinctive than a headshake as a "no".
   buzz is therefore a no-op on the player's iPad and the wiggle carries the whole signal;
   the call is kept because it is free and works on Android.
 - The wiggle respects `prefers-reduced-motion` by degrading to a brief outline flash.
+- `drawCanHelp` costs one simulated deck cycle (≤53 cheap state clones) per call, and
+  `isStuck` runs once per move. Immaterial at 52 cards, and worth it: the alternative is a
+  hint that lies.
+- A refused move is an **edge, not a level** — the shake class is dropped and re-applied a
+  frame later, because a CSS animation only restarts when the class actually leaves. A
+  generation token stops a frame that ran late (backgrounded iPad) from re-applying a class
+  no timer will clear.
 - Unchanged limitation from ADR 5: a board where only lateral shuffles remain is not
   "stuck", so Hint still returns `null` there and merely buzzes. Detecting that as dead
   would require search, and a false "give up" is worse than a buzz.
