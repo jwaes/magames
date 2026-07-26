@@ -299,6 +299,45 @@ function emptiesColumn(state: GameState, src: Source, dest: Dest): boolean {
 }
 
 /**
+ * Does this specific move make progress? The single definition of "progress"
+ * used both to rank hints and to decide whether a card is doing useful work
+ * where it stands — the two must agree or the hint contradicts itself.
+ */
+function moveIsProductive(state: GameState, src: Source, dest: Dest): boolean {
+  if (dest.type === 'foundation') return true
+  if (src.type === 'waste') return true
+  return uncoversCard(state, src) || emptiesColumn(state, src, dest)
+}
+
+/**
+ * True when the tableau still wants this card where it is: it is the exposed
+ * base of its column, and some other card could land on it right now in a way
+ * that makes progress. Sending it to a foundation would take that away.
+ *
+ * This is what stops the hint ping-ponging. A foundation move outranks
+ * everything, so after the hint says "pull the red 5 back down so the black 4
+ * can move", the very next hint said "put the red 5 back" — undoing the move it
+ * had just recommended, forever.
+ *
+ * "Wants it" has to mean exactly what `productiveSource` means by progress,
+ * including a waste card landing there. An earlier version left waste plays out
+ * and the ping-pong simply moved to that door: the pull was justified by a waste
+ * card wanting the base, and the guard didn't see it.
+ */
+function tableauStillNeeds(state: GameState, src: Source): boolean {
+  if (src.type !== 'tableau') return false
+  const col = state.tableau[src.pile]
+  if (src.index !== col.length - 1) return false // not the exposed base
+  const dest: Dest = { type: 'tableau', pile: src.pile }
+  for (const other of allSources(state)) {
+    if (other.type === 'tableau' && other.pile === src.pile) continue
+    if (!canMove(state, other, dest)) continue
+    if (moveIsProductive(state, other, dest)) return true
+  }
+  return false
+}
+
+/**
  * A source whose move makes real progress, in priority order:
  *   1. onto a foundation,
  *   2. a waste card onto the tableau (uses a drawn card),
@@ -315,7 +354,7 @@ function productiveSource(state: GameState, exceptCardId?: string): Source | nul
   })
 
   for (const src of sources) {
-    if (autoDest(state, src)?.type === 'foundation') return src
+    if (autoDest(state, src)?.type === 'foundation' && !tableauStillNeeds(state, src)) return src
   }
   for (const src of sources) {
     if (src.type === 'waste' && autoDest(state, src)) return src
@@ -326,6 +365,11 @@ function productiveSource(state: GameState, exceptCardId?: string): Source | nul
   for (const src of sources) {
     const dest = autoDest(state, src)
     if (dest && emptiesColumn(state, src, dest)) return src
+  }
+  // A foundation move held back above, taken now only because nothing else makes
+  // progress. Whatever wanted that base can't actually use it, so banking wins.
+  for (const src of sources) {
+    if (autoDest(state, src)?.type === 'foundation') return src
   }
   return null
 }

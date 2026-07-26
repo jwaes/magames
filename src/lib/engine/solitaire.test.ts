@@ -381,6 +381,27 @@ describe('findHint', () => {
     expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 5, index: 1 } })
   })
 
+  it('does not bank a card the tableau is about to use', () => {
+    const s = emptyState()
+    // Exactly the position left behind after a foundation pull: the red 5 came
+    // off the hearts foundation onto the black 6 so the black 4 could follow.
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    s.tableau[1] = [card('clubs', 9, false), card('spades', 4)]
+    // Sending the 5 straight back to the foundation is legal and outranks
+    // everything — which is precisely the ping-pong. Play the black 4 instead.
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 1, index: 1 } })
+  })
+
+  it('still banks a card nothing is waiting for', () => {
+    const s = emptyState()
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    // No black 4 anywhere, so the red 5 is doing no work in the tableau.
+    s.tableau[1] = [card('clubs', 9, false), card('spades', 9)]
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 0, index: 1 } })
+  })
+
   it("does NOT say 'draw' when draw-3 can never turn up the playable card", () => {
     const s = emptyState(3)
     s.tableau[0] = [card('spades', 2)]
