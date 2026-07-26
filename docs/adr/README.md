@@ -16,3 +16,4 @@ Accepted; to change one, add a new ADR that supersedes it.
 | [0005](0005-local-stats-and-truly-stuck-loss.md) | Local-only stats with honest truly-stuck loss | Accepted |
 | [0006](0006-hint-with-a-reason-and-illegal-move-feedback.md) | A hint that states its reason, and illegal moves you can feel | Accepted (partly superseded by 0007) |
 | [0007](0007-hint-searches-before-it-gives-up.md) | The hint searches before it gives up, and always says something | Accepted |
+| [0008](0008-dont-bank-a-card-the-tableau-needs.md) | Don't bank a card the tableau still needs | Accepted |

@@ -299,13 +299,63 @@ function emptiesColumn(state: GameState, src: Source, dest: Dest): boolean {
 }
 
 /**
- * A source whose move makes real progress, in priority order:
- *   1. onto a foundation,
- *   2. a waste card onto the tableau (uses a drawn card),
- *   3. a tableau move that uncovers a face-down card,
- *   4. a tableau move that empties a column.
- * Lateral moves — e.g. shifting a red 5 from one black 6 to an equivalent black
- * 6, revealing nothing and freeing nothing — never count. `exceptCardId` ignores
+ * The one definition of what counts as progress, and how good it is.
+ *
+ * Everything reads it: the hint ranks by it, and `tableauStillNeeds` decides by
+ * it whether a card is doing useful work where it stands. Those two must agree.
+ * They were separate hand-maintained ladders once, they drifted, and the hint
+ * spent a while cheerfully undoing its own suggestions.
+ */
+type Progress = (typeof PROGRESS_ORDER)[number]
+const PROGRESS_ORDER = ['foundation', 'waste', 'uncover', 'empty'] as const
+
+function progressKind(state: GameState, src: Source, dest: Dest): Progress | null {
+  if (dest.type === 'foundation') return 'foundation'
+  if (src.type === 'waste') return 'waste' // uses up a drawn card
+  if (uncoversCard(state, src)) return 'uncover'
+  if (emptiesColumn(state, src, dest)) return 'empty'
+  return null // a lateral shuffle: reveals nothing, frees nothing
+}
+
+function moveIsProductive(state: GameState, src: Source, dest: Dest): boolean {
+  return progressKind(state, src, dest) !== null
+}
+
+/**
+ * True when the tableau still wants this card where it is: it is the exposed
+ * base of its column, and some other card could land on it right now in a way
+ * that makes progress. Sending it to a foundation would take that away.
+ *
+ * This is what stops the hint ping-ponging. A foundation move outranks
+ * everything, so after the hint says "pull the red 5 back down so the black 4
+ * can move", the very next hint said "put the red 5 back" — undoing the move it
+ * had just recommended, forever.
+ *
+ * "Wants it" has to mean exactly what `productiveSource` means by progress,
+ * including a waste card landing there. An earlier version left waste plays out
+ * and the ping-pong simply moved to that door: the pull was justified by a waste
+ * card wanting the base, and the guard didn't see it.
+ */
+function tableauStillNeeds(state: GameState, src: Source): boolean {
+  if (src.type !== 'tableau') return false
+  const col = state.tableau[src.pile]
+  if (src.index !== col.length - 1) return false // not the exposed base
+  const dest: Dest = { type: 'tableau', pile: src.pile }
+  for (const other of allSources(state)) {
+    if (other.type === 'tableau' && other.pile === src.pile) continue
+    if (!canMove(state, other, dest)) continue
+    if (moveIsProductive(state, other, dest)) return true
+  }
+  return false
+}
+
+/**
+ * The best move that makes real progress, ranked by `PROGRESS_ORDER`. Each
+ * candidate is graded at the destination a tap would actually send it to, so the
+ * hint can never point at a move the player's tap won't make.
+ *
+ * A foundation move the tableau still needs is held back rather than dropped: it
+ * is returned only if nothing else makes progress at all. `exceptCardId` ignores
  * one specific card, which is how the foundation-pull search avoids a loop.
  */
 function productiveSource(state: GameState, exceptCardId?: string): Source | null {
@@ -314,20 +364,24 @@ function productiveSource(state: GameState, exceptCardId?: string): Source | nul
     return pickup(state, src)[0]?.id !== exceptCardId
   })
 
-  for (const src of sources) {
-    if (autoDest(state, src)?.type === 'foundation') return src
+  let heldBack: Source | null = null
+  for (const tier of PROGRESS_ORDER) {
+    for (const src of sources) {
+      const dest = autoDest(state, src)
+      if (!dest || progressKind(state, src, dest) !== tier) continue
+      if (tier === 'foundation' && tableauStillNeeds(state, src)) {
+        heldBack ??= src
+        continue
+      }
+      return src
+    }
   }
-  for (const src of sources) {
-    if (src.type === 'waste' && autoDest(state, src)) return src
-  }
-  for (const src of sources) {
-    if (src.type === 'tableau' && uncoversCard(state, src) && autoDest(state, src)) return src
-  }
-  for (const src of sources) {
-    const dest = autoDest(state, src)
-    if (dest && emptiesColumn(state, src, dest)) return src
-  }
-  return null
+  // Reaching here with something held back looks unreachable today — the witness
+  // that held it back would itself have been productive. Kept because that
+  // argument depends on the current tiers, and silently returning null instead
+  // would tell the player the game is over while a legal move sits in front of
+  // her, which is the one failure mode worth paying three lines to avoid.
+  return heldBack
 }
 
 /** How many shuffle-only positions the escape search looks at before giving up.

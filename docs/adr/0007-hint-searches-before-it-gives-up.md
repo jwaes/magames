@@ -62,7 +62,7 @@ in PR #6, and a grey-versus-yellow distinction is a poor thing to ask low vision
 - `tableauKey` omits `faceUp` deliberately — safe only because the search runs exclusively on
   positions where no uncovering move is legal. Reordering `findHint` so the search precedes the
   uncover check would silently make that key conflate positions.
-- **Known, not fixed here:** a bot that always obeys the hint enters a foundation-pull ↔
+- **Since fixed — see [ADR 8](0008-dont-bank-a-card-the-tableau-needs.md).** As found here: a bot that always obeys the hint enters a foundation-pull ↔
   play-to-foundation loop in ~14% of seeded games. It predates this ADR (it arrives with the
   ADR 6 foundation pull), and neither the column rule nor the search appears in any such cycle.
   A foundation move outranks everything, so it immediately undoes the pull that was meant to
