@@ -124,7 +124,7 @@ test('stats screen opens from home and shows tiles', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Kaartspellen' })).toBeVisible()
 })
 
-test('settings: swapping the layout moves the deck to the right', async ({ page }) => {
+test('settings: swapping the layout mirrors the deck pair to the right edge', async ({ page }) => {
   await page.goto('/?seed=1')
   await page.getByRole('button', { name: /Patience/ }).click()
   const stock = page.getByTestId('stock')
