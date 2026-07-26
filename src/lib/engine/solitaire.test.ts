@@ -346,6 +346,36 @@ describe('findHint', () => {
     expect(findHint(s)).toEqual({ kind: 'stuck' })
   })
 
+  it('hints a move that empties a column, even though it uncovers nothing', () => {
+    const s = emptyState()
+    // The lone red queen has no face-down card beneath her, so moving her onto
+    // the black king "reveals" nothing — but it frees a whole column, which is
+    // one of the most valuable things you can do in Klondike.
+    s.tableau[0] = [card('hearts', 12)]
+    s.tableau[1] = [card('spades', 13)]
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 0, index: 0 } })
+  })
+
+  it('does NOT count shuffling a lone card into an empty column as emptying one', () => {
+    const s = emptyState()
+    // Column 0 empties, column 3 fills: net zero, and it would hint forever.
+    // Not `stuck` either — that pointless move IS legal, so the board isn't
+    // provably dead; it is the honest "I can't find anything that helps" case.
+    s.tableau[0] = [card('hearts', 13)]
+    expect(findHint(s)).toBeNull()
+  })
+
+  it('finds an escape a shuffle away rather than giving up at one move', () => {
+    const s = emptyState()
+    // Sliding the red 5 onto the other black 6 empties column 0 — which the
+    // shuffle search must notice even though the first move flips nothing.
+    s.tableau[0] = [card('hearts', 5)]
+    s.tableau[1] = [card('spades', 6)]
+    s.tableau[2] = [card('clubs', 9, false), card('diamonds', 12)]
+    const h = findHint(s)
+    expect(h?.kind).toBe('move')
+  })
+
   it("does NOT say 'draw' when draw-3 can never turn up the playable card", () => {
     const s = emptyState(3)
     s.tableau[0] = [card('spades', 2)]

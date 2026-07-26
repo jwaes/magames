@@ -606,6 +606,23 @@
       </div>
     </div>
   {/if}
+
+  <!-- The softer sibling of the dialog above: nothing useful is left, but a
+       legal (pointless) move still exists, so we don't claim the game is dead —
+       we say what we actually know and let her decide. -->
+  {#if game.exhausted && !game.stuck && !game.won}
+    <div class="win" role="dialog" aria-label="Geen nuttige zetten meer">
+      <div class="win-card">
+        <div class="trophy">🤔</div>
+        <h2>Ik zie geen zet meer die helpt</h2>
+        <p>Je kunt nog kaarten verschuiven, maar dat brengt je niet verder. Dit spel is waarschijnlijk klaar.</p>
+        <div class="btn-row">
+          <button class="big-btn quiet" onclick={() => game.dismissExhausted()}>Verder spelen</button>
+          <button class="big-btn" onclick={() => game.newGame()}>Nieuw spel</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -908,6 +925,21 @@
     background: #0b6b3a;
     color: #fff;
     cursor: pointer;
+  }
+  /* Two choices side by side, wrapping to a stack when the dialog is narrow so
+     neither button ever gets squeezed below a comfortable tap target. */
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    justify-content: center;
+  }
+  /* Named `quiet`, not `ghost`: `.ghost` is already the drag ghost card in this
+     component and is position:fixed, which yanks the button out of the row. */
+  .big-btn.quiet {
+    background: transparent;
+    color: #0b6b3a;
+    box-shadow: inset 0 0 0 3px #0b6b3a;
   }
   @keyframes fade {
     from {

@@ -70,6 +70,41 @@ describe('showHint', () => {
     expect(game.hintDeck).toBe(false)
   })
 
+  // The silent case: no useful move, but a legal shuffle exists so the board
+  // isn't provably dead. Saying nothing at all is what made this confusing —
+  // "I have no suggestion" looked exactly like "the game is over".
+  it('says it has nothing left when only pointless shuffles remain', () => {
+    const s = emptyState()
+    // A lone King with empty columns: it can slide about forever, achieving
+    // nothing. `isStuck` says false (a legal move exists), so this is the
+    // softer message, not the dead-game one.
+    s.tableau[0] = [card('hearts', 13)]
+    game.state = s
+    game.showHint()
+    expect(game.exhausted).toBe(true)
+    expect(game.stuck).toBe(false)
+    expect(game.hint).toBeNull()
+    expect(game.hintDeck).toBe(false)
+  })
+
+  it('lets the player wave the message away and keep playing', () => {
+    const s = emptyState()
+    s.tableau[0] = [card('hearts', 13)]
+    game.state = s
+    game.showHint()
+    game.dismissExhausted()
+    expect(game.exhausted).toBe(false)
+  })
+
+  it('does not claim to be out of moves when a useful one exists', () => {
+    const s = emptyState()
+    s.waste = [card('hearts', 5)]
+    s.tableau[0] = [card('spades', 6)]
+    game.state = s
+    game.showHint()
+    expect(game.exhausted).toBe(false)
+  })
+
   it('clears a deck pulse on undo', () => {
     const s = deadBoard()
     s.stock = [card('clubs', 1, false)]

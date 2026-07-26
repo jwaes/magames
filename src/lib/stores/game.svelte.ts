@@ -30,6 +30,12 @@ class SolitaireGame {
   hint = $state<Source | null>(null)
   /** True when the hint is "turn the deck", pulsing the stock pile instead of a card. */
   hintDeck = $state(false)
+  /**
+   * The hint looked and found nothing useful, but the board isn't provably dead
+   * — some legal shuffle still exists. Distinct from `stuck` on purpose: this
+   * one never books a loss, because the game only *looks* finished.
+   */
+  exhausted = $state(false)
   stuck = $state(false)
   records = $state<WinRecords | null>(null)
 
@@ -55,6 +61,7 @@ class SolitaireGame {
     this.stuck = false
     this.hint = null
     this.hintDeck = false
+    this.exhausted = false
     this.records = null
     this.seconds = 0
     this.#stopTimer()
@@ -70,6 +77,7 @@ class SolitaireGame {
     this.state = next
     this.hint = null
     this.hintDeck = false
+    this.exhausted = false
     this.#startTimer()
     play(sound, settings.sound)
 
@@ -127,6 +135,7 @@ class SolitaireGame {
     this.stuck = false
     this.hint = null
     this.hintDeck = false
+    this.exhausted = false
     // Resume the clock: reaching a stuck (or won) state stops the timer, and
     // undoing back into a live game must let time run again. No-op if already running.
     this.#startTimer()
@@ -149,20 +158,30 @@ class SolitaireGame {
   }
 
   /**
-   * Suggest the next useful action. Three outcomes, three affordances: pulse a
-   * card, pulse the deck, or surface the "no moves left" overlay. That last one
-   * is why this is the honest answer to "is this game still alive?" — the
-   * overlay used to be reachable only after a successful move.
+   * Suggest the next useful action — and always say something. Four outcomes:
+   * pulse a card, pulse the deck, the "no moves left" overlay for a provably
+   * dead game, or the softer "nothing here helps" message. The last two are why
+   * this is the honest answer to "is this game still alive?"; the dead-game
+   * overlay used to be reachable only after a successful move, and having no
+   * suggestion used to be a bare buzz that looked identical to it.
    */
   showHint(): void {
     const h: Hint | null = findHint(this.state)
     this.hint = h?.kind === 'move' ? h.src : null
     this.hintDeck = h?.kind === 'draw'
+    // No suggestion at all used to be a bare buzz, indistinguishable from a dead
+    // game. Say which of the two it is.
+    this.exhausted = h === null
     if (h?.kind === 'stuck') {
       this.stuck = true
       this.#stopTimer()
     }
     play(h && h.kind !== 'stuck' ? 'flip' : 'invalid', settings.sound)
+  }
+
+  /** Wave away the "nothing left that helps" message and keep poking at the board. */
+  dismissExhausted(): void {
+    this.exhausted = false
   }
 
   /** Sweep an unblocked board to the foundations, one animated step at a time. */
