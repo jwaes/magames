@@ -4,11 +4,13 @@
   let {
     card,
     hinted = false,
+    shake = false,
     onpick,
     onpointerdown
   }: {
     card: Card
     hinted?: boolean
+    shake?: boolean
     onpick?: (e: MouseEvent) => void
     onpointerdown?: (e: PointerEvent) => void
   } = $props()
@@ -20,6 +22,7 @@
   <button
     class="card face"
     class:hinted
+    class:shake
     style="color: {color}"
     onclick={onpick}
     onpointerdown={onpointerdown}
@@ -115,11 +118,40 @@
     }
   }
 
+  /* A refused move: a short headshake on the card the player actually tapped,
+     so the feedback says WHICH card, not just "no". */
+  .shake {
+    animation: wiggle 0.25s ease-in-out;
+    z-index: 40;
+  }
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    15% {
+      transform: translateX(-5%);
+    }
+    35% {
+      transform: translateX(5%);
+    }
+    55% {
+      transform: translateX(-3.5%);
+    }
+    75% {
+      transform: translateX(2%);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .card,
-    .hinted {
+    .hinted,
+    .shake {
       transition: none;
       animation: none;
+    }
+    .shake {
+      box-shadow: 0 0 0 calc(var(--card-w) * 0.06) rgba(190, 30, 30, 0.8);
     }
   }
 </style>
