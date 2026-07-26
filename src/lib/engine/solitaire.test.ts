@@ -365,15 +365,20 @@ describe('findHint', () => {
     expect(findHint(s)).toBeNull()
   })
 
-  it('finds an escape a shuffle away rather than giving up at one move', () => {
+  it('hints the sideways jack that lets the queen empty her column next move', () => {
     const s = emptyState()
-    // Sliding the red 5 onto the other black 6 empties column 0 — which the
-    // shuffle search must notice even though the first move flips nothing.
-    s.tableau[0] = [card('hearts', 5)]
-    s.tableau[1] = [card('spades', 6)]
-    s.tableau[2] = [card('clubs', 9, false), card('diamonds', 12)]
-    const h = findHint(s)
-    expect(h?.kind).toBe('move')
+    s.tableau[0] = [card('clubs', 13)] // black K, the queen's eventual home
+    s.tableau[1] = [card('spades', 12)] // black Q, the jack's landing spot
+    // Two reds stacked, so they cannot travel together as a run.
+    s.tableau[5] = [card('hearts', 12), card('hearts', 11)]
+    // Moving the jack flips nothing and empties nothing, so it is not productive
+    // on its own — only the search two moves out sees that it strands the red
+    // queen alone, after which SHE empties column 5.
+    //
+    // The king's four moves into empty columns are explored first, so the escape
+    // sits several positions deep. That is deliberate: it also guards
+    // SHUFFLE_SEARCH_CAP against being trimmed to nothing.
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 5, index: 1 } })
   })
 
   it("does NOT say 'draw' when draw-3 can never turn up the playable card", () => {
