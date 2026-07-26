@@ -167,14 +167,17 @@
     const stockRect = document.querySelector('[data-testid="stock"]')?.getBoundingClientRect()
     const wasteRect = document.querySelector('[data-testid="waste"]')?.getBoundingClientRect()
     const before = game.moves
+    // Refusal is "there is nothing left to turn", NOT "the move counter didn't
+    // change": recycling the waste back into the stock is a legal, useful tap
+    // that deliberately doesn't count as a move, and must not be scolded.
+    const nothingToTurn = game.state.stock.length === 0 && game.state.waste.length === 0
     game.drawStock()
-    // moves only increases on a real draw (not on a recycle) — skip the flip then.
-    if (game.moves === before) {
-      // Deck and waste are both empty: there is nothing left to turn.
+    if (nothingToTurn) {
       rejectMove(null)
       return
     }
-    if (reduceMotion || !stockRect || !wasteRect) return
+    // moves only increases on a real draw (not on a recycle) — skip the flip then.
+    if (reduceMotion || game.moves === before || !stockRect || !wasteRect) return
 
     await tick()
     const top = game.state.waste[game.state.waste.length - 1]
