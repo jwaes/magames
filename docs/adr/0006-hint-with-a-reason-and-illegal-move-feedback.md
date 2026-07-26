@@ -1,6 +1,8 @@
 # 6. A hint that states its reason, and illegal moves you can feel
 
-**Status:** Accepted (2026-07-26)
+**Status:** Accepted (2026-07-26) — the last Consequences bullet is superseded by
+[ADR 7](0007-hint-searches-before-it-gives-up.md), which adds a search and a message in place
+of the silent `null`, and adds emptying a column to the priority chain.
 
 ## Context
 

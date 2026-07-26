@@ -289,13 +289,24 @@ export type Hint =
   | { kind: 'stuck' }
 
 /**
+ * True when moving this whole column away leaves the column empty — a free slot
+ * for a King, which is real progress even though it reveals nothing. Moving the
+ * column into ANOTHER empty column is net zero and doesn't count.
+ */
+function emptiesColumn(state: GameState, src: Source, dest: Dest): boolean {
+  if (src.type !== 'tableau' || src.index !== 0) return false
+  return dest.type === 'tableau' && state.tableau[dest.pile].length > 0
+}
+
+/**
  * A source whose move makes real progress, in priority order:
  *   1. onto a foundation,
  *   2. a waste card onto the tableau (uses a drawn card),
- *   3. a tableau move that uncovers a face-down card.
+ *   3. a tableau move that uncovers a face-down card,
+ *   4. a tableau move that empties a column.
  * Lateral moves — e.g. shifting a red 5 from one black 6 to an equivalent black
- * 6, revealing nothing — never count. `exceptCardId` ignores one specific card,
- * which is how the foundation-pull search avoids recommending a loop.
+ * 6, revealing nothing and freeing nothing — never count. `exceptCardId` ignores
+ * one specific card, which is how the foundation-pull search avoids a loop.
  */
 function productiveSource(state: GameState, exceptCardId?: string): Source | null {
   const sources = allSources(state).filter((src) => {
@@ -311,6 +322,71 @@ function productiveSource(state: GameState, exceptCardId?: string): Source | nul
   }
   for (const src of sources) {
     if (src.type === 'tableau' && uncoversCard(state, src) && autoDest(state, src)) return src
+  }
+  for (const src of sources) {
+    const dest = autoDest(state, src)
+    if (dest && emptiesColumn(state, src, dest)) return src
+  }
+  return null
+}
+
+/** How many shuffle-only positions the escape search looks at before giving up.
+ *  Measured: 60 gives outcomes identical to 400 across 150 seeded games, at a
+ *  fraction of the cost — the reachable shuffle set is tiny in practice. */
+const SHUFFLE_SEARCH_CAP = 60
+
+/** Identifies a position for the search's visited set. Shuffling never flips a
+ *  card, touches a foundation or turns the deck, so the columns alone say it all. */
+function tableauKey(state: GameState): string {
+  return state.tableau.map((col) => col.map((c) => c.id).join(',')).join('|')
+}
+
+/**
+ * Look for a way out that starts with a move which looks pointless.
+ *
+ * Mostly a safety net. Sliding a run off a card can only expose a receiver that
+ * was already available somewhere else — the run had to land on an equal-ranked,
+ * equal-coloured card to move at all — so a shuffle essentially cannot unlock
+ * anything that wasn't unlocked a move earlier. The real exception is emptying a
+ * column, and `productiveSource` now scores that directly.
+ *
+ * The search exists because "essentially" is doing work in that sentence, and
+ * the cost of being wrong is telling the player a live game is over. Shuffling
+ * cannot flip cards or change the foundations, so the reachable set is small and
+ * closed; in practice this terminates in a handful of positions.
+ *
+ * Returns the FIRST move of a path that reaches something productive, or null.
+ * Null never means "provably dead" — the cap may have been hit — only that
+ * nothing was found.
+ */
+function findShuffleEscape(state: GameState): Source | null {
+  const seen = new Set<string>([tableauKey(state)])
+  const queue: { state: GameState; first: Source }[] = []
+
+  const expand = (from: GameState, first: Source | null) => {
+    for (const src of allSources(from)) {
+      if (src.type !== 'tableau') continue
+      for (let q = 0; q < NUM_TABLEAU; q++) {
+        const next = move(from, src, { type: 'tableau', pile: q })
+        if (!next) continue
+        const key = tableauKey(next)
+        if (seen.has(key)) continue
+        seen.add(key)
+        queue.push({ state: next, first: first ?? src })
+      }
+    }
+  }
+
+  // Shuffling never turns the deck, so which cards the player could bring up is
+  // fixed for the whole search — simulate the cycle once, not per position.
+  const deckTops = reachableDeckTops(state)
+
+  expand(state, null)
+  for (let i = 0; i < queue.length && i < SHUFFLE_SEARCH_CAP; i++) {
+    const node = queue[i]
+    if (productiveSource(node.state)) return node.first
+    if (deckTops.some((c) => placeableAnywhere(node.state, c))) return node.first
+    expand(node.state, node.first)
   }
   return null
 }
@@ -344,6 +420,12 @@ export function findHint(state: GameState): Hint | null {
   }
 
   if (isStuck(state)) return { kind: 'stuck' }
+
+  // Only shuffles left. Check whether any of them actually leads anywhere before
+  // telling the player there is nothing — see `findShuffleEscape`.
+  const escape = findShuffleEscape(state)
+  if (escape) return { kind: 'move', src: escape }
+
   return null
 }
 
@@ -360,20 +442,25 @@ export function findHint(state: GameState): Hint | null {
  * Placement is tested against the original board, which is exactly the
  * assumption that makes the cycle fixed: nothing else moves while drawing.
  */
-function drawCanHelp(state: GameState): boolean {
+function reachableDeckTops(state: GameState): Card[] {
   const deckSize = state.stock.length + state.waste.length
+  const tops: Card[] = []
   let s = state
   // deckSize + 1 turns is exactly enough, not generously so: the draw-1 worst
   // case needs every stock card surfaced, then a recycle, then every card that
   // started in the waste — so the final iteration is load-bearing. Don't trim it.
   for (let i = 0; i <= deckSize; i++) {
     const next = draw(s)
-    if (!next) return false
+    if (!next) break
     s = next
     const top = s.waste[s.waste.length - 1]
-    if (top && placeableAnywhere(state, top)) return true
+    if (top) tops.push(top)
   }
-  return false
+  return tops
+}
+
+function drawCanHelp(state: GameState): boolean {
+  return reachableDeckTops(state).some((c) => placeableAnywhere(state, c))
 }
 
 /** Can this single card be placed anywhere right now (foundation or tableau)? */

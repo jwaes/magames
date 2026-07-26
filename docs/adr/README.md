@@ -14,4 +14,5 @@ Accepted; to change one, add a new ADR that supersedes it.
 | [0003](0003-bundled-suit-font.md) | Bundle a subset suit font for cross-device glyphs | Accepted |
 | [0004](0004-tap-default-hybrid-drag.md) | Tap-to-move default, hybrid drag optional | Accepted |
 | [0005](0005-local-stats-and-truly-stuck-loss.md) | Local-only stats with honest truly-stuck loss | Accepted |
-| [0006](0006-hint-with-a-reason-and-illegal-move-feedback.md) | A hint that states its reason, and illegal moves you can feel | Accepted |
+| [0006](0006-hint-with-a-reason-and-illegal-move-feedback.md) | A hint that states its reason, and illegal moves you can feel | Accepted (partly superseded by 0007) |
+| [0007](0007-hint-searches-before-it-gives-up.md) | The hint searches before it gives up, and always says something | Accepted |

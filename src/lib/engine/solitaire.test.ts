@@ -346,6 +346,41 @@ describe('findHint', () => {
     expect(findHint(s)).toEqual({ kind: 'stuck' })
   })
 
+  it('hints a move that empties a column, even though it uncovers nothing', () => {
+    const s = emptyState()
+    // The lone red queen has no face-down card beneath her, so moving her onto
+    // the black king "reveals" nothing — but it frees a whole column, which is
+    // one of the most valuable things you can do in Klondike.
+    s.tableau[0] = [card('hearts', 12)]
+    s.tableau[1] = [card('spades', 13)]
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 0, index: 0 } })
+  })
+
+  it('does NOT count shuffling a lone card into an empty column as emptying one', () => {
+    const s = emptyState()
+    // Column 0 empties, column 3 fills: net zero, and it would hint forever.
+    // Not `stuck` either — that pointless move IS legal, so the board isn't
+    // provably dead; it is the honest "I can't find anything that helps" case.
+    s.tableau[0] = [card('hearts', 13)]
+    expect(findHint(s)).toBeNull()
+  })
+
+  it('hints the sideways jack that lets the queen empty her column next move', () => {
+    const s = emptyState()
+    s.tableau[0] = [card('clubs', 13)] // black K, the queen's eventual home
+    s.tableau[1] = [card('spades', 12)] // black Q, the jack's landing spot
+    // Two reds stacked, so they cannot travel together as a run.
+    s.tableau[5] = [card('hearts', 12), card('hearts', 11)]
+    // Moving the jack flips nothing and empties nothing, so it is not productive
+    // on its own — only the search two moves out sees that it strands the red
+    // queen alone, after which SHE empties column 5.
+    //
+    // The king's four moves into empty columns are explored first, so the escape
+    // sits several positions deep. That is deliberate: it also guards
+    // SHUFFLE_SEARCH_CAP against being trimmed to nothing.
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 5, index: 1 } })
+  })
+
   it("does NOT say 'draw' when draw-3 can never turn up the playable card", () => {
     const s = emptyState(3)
     s.tableau[0] = [card('spades', 2)]
