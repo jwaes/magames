@@ -393,6 +393,27 @@ describe('findHint', () => {
     expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 1, index: 1 } })
   })
 
+  it('does not bank a card the WASTE is about to use', () => {
+    const s = emptyState()
+    // Same shape as above, but the card waiting for the red 5 is on the waste
+    // rather than in a column. The first attempt at this fix left waste plays
+    // out of the guard and the ping-pong simply moved to this door.
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    s.waste = [card('spades', 4)]
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'waste' } })
+  })
+
+  it('does not bank a card that lets another column be emptied', () => {
+    const s = emptyState()
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6), card('hearts', 5)]
+    // This lone black 4 empties its column by moving onto the red 5 — progress
+    // that vanishes if the 5 is banked first.
+    s.tableau[1] = [card('spades', 4)]
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 1, index: 0 } })
+  })
+
   it('still banks a card nothing is waiting for', () => {
     const s = emptyState()
     s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4].map((r) => card('hearts', r as Rank))
@@ -450,5 +471,41 @@ describe('findHint', () => {
     // Pulling 5♥ onto the 6♠ only lets 5♥ go straight back — an infinite loop, not a hint.
     // The board is not dead (that pull is legal), so this is null rather than 'stuck'.
     expect(findHint(s)).toBeNull()
+  })
+})
+
+// The property the hint guarantees, rather than a sample of positions: playing
+// the hinted move over and over must always make progress. Every unit test above
+// pins one shape of the ping-pong; only this pins the absence of all of them.
+describe('following the hint never goes in circles', () => {
+  function positionKey(s: GameState): string {
+    const cols = s.tableau.map((c) => c.map((k) => k.id + (k.faceUp ? '+' : '-')).join(',')).join('|')
+    return `${cols}#${s.foundations.map((f) => f.length).join(',')}#${s.waste.length}/${s.stock.length}`
+  }
+
+  it.each([1, 3] as const)('never revisits a position (draw-%i)', (drawCount) => {
+    const looping: number[] = []
+    for (let seed = 1; seed <= 60; seed++) {
+      let s = deal(drawCount, mulberry32(seed))
+      const seen = new Set<string>()
+      for (let step = 0; step < 500; step++) {
+        const k = positionKey(s)
+        if (seen.has(k)) {
+          looping.push(seed)
+          break
+        }
+        seen.add(k)
+        const h = findHint(s)
+        if (!h || h.kind === 'stuck') break
+        if (h.kind === 'draw') {
+          s = draw(s)!
+          continue
+        }
+        const dest = autoDest(s, h.src)
+        if (!dest) break
+        s = move(s, h.src, dest)!
+      }
+    }
+    expect(looping).toEqual([])
   })
 })

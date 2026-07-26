@@ -42,3 +42,13 @@ being broken.
 - `Afmaken` is untouched: it runs off `nextAutoFinishMove`, which only fires once the stock and
   waste are empty and nothing is face-down — a state where nothing can need a base.
 - The player can still bank whatever they like by tapping. This governs only what is *suggested*.
+- The held-back move is returned as a last resort, and that path appears to be **unreachable
+  today**: measured over 88 000 reachable positions it never fired, and the witness that held a
+  move back would itself have been productive. It stays because that argument depends on the
+  current tiers, and the failure it guards against — announcing the game is over while a legal
+  move sits on screen — is the worst one available.
+- Guarded by a property test, not just examples: a bot follows the hint across 60 seeded games in
+  both draw modes and must never revisit a position. Every example test here pins one shape of
+  the ping-pong; only that test pins the absence of all of them. It kills mutants that the
+  example tests missed — dropping the waste or empties-column branch leaves the examples green
+  but reintroduces loops.
