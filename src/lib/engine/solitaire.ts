@@ -280,17 +280,28 @@ function allSources(state: GameState): Source[] {
   return out
 }
 
+/** Where a hint points, and why. `null` means only pointless shuffles remain. */
+export type Hint =
+  | { kind: 'move'; src: Source }
+  /** No board move helps, but a card still in the stock/waste is playable — turn the deck. */
+  | { kind: 'draw' }
+  /** `isStuck` agrees: nothing can ever help. */
+  | { kind: 'stuck' }
+
 /**
- * Suggest a genuinely *useful* move, or null if only pointless shuffles remain.
- * A move earns a hint only if it makes progress, in priority order:
+ * A source whose move makes real progress, in priority order:
  *   1. onto a foundation,
  *   2. a waste card onto the tableau (uses a drawn card),
  *   3. a tableau move that uncovers a face-down card.
  * Lateral moves — e.g. shifting a red 5 from one black 6 to an equivalent black
- * 6, revealing nothing — are deliberately never hinted.
+ * 6, revealing nothing — never count. `exceptCardId` ignores one specific card,
+ * which is how the foundation-pull search avoids recommending a loop.
  */
-export function findHint(state: GameState): Source | null {
-  const sources = allSources(state)
+function productiveSource(state: GameState, exceptCardId?: string): Source | null {
+  const sources = allSources(state).filter((src) => {
+    if (exceptCardId === undefined) return true
+    return pickup(state, src)[0]?.id !== exceptCardId
+  })
 
   for (const src of sources) {
     if (autoDest(state, src)?.type === 'foundation') return src
@@ -301,6 +312,38 @@ export function findHint(state: GameState): Source | null {
   for (const src of sources) {
     if (src.type === 'tableau' && uncoversCard(state, src) && autoDest(state, src)) return src
   }
+  return null
+}
+
+/**
+ * Suggest the next genuinely useful action — and when there isn't one, say why.
+ * A bare `null` used to mean three different things (draw a card / the game is
+ * dead / only shuffles remain), which left the UI unable to do more than buzz.
+ */
+export function findHint(state: GameState): Hint | null {
+  const productive = productiveSource(state)
+  if (productive) return { kind: 'move', src: productive }
+
+  // Nothing on the board helps — would turning the deck bring up something playable?
+  for (const c of [...state.stock, ...state.waste]) {
+    if (placeableAnywhere(state, c)) return { kind: 'draw' }
+  }
+
+  // Last resort: take a card back off a foundation, but only when it unblocks a
+  // DIFFERENT card. Without that guard the "unblocking" move found is putting the
+  // same card straight back, and the hint would suggest an infinite loop.
+  for (let f = 0; f < state.foundations.length; f++) {
+    const pile = state.foundations[f]
+    if (pile.length === 0) continue
+    const src: Source = { type: 'foundation', pile: f }
+    const pulledId = pile[pile.length - 1].id
+    for (let q = 0; q < NUM_TABLEAU; q++) {
+      const next = move(state, src, { type: 'tableau', pile: q })
+      if (next && productiveSource(next, pulledId)) return { kind: 'move', src }
+    }
+  }
+
+  if (isStuck(state)) return { kind: 'stuck' }
   return null
 }
 

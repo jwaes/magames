@@ -264,20 +264,21 @@ describe('findHint', () => {
     // Plus a purely lateral tableau move (red 5 -> another black 6) that we must NOT prefer.
     s.tableau[0] = [card('spades', 6), card('hearts', 5)]
     s.tableau[1] = [card('clubs', 6)]
-    expect(findHint(s)).toEqual({ type: 'waste' })
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'waste' } })
   })
 
   it('hints a tableau move that uncovers a face-down card', () => {
     const s = emptyState()
     s.tableau[0] = [card('clubs', 9, false), card('hearts', 5)] // face-down under a red 5
     s.tableau[1] = [card('spades', 6)] // black 6 accepts the red 5
-    expect(findHint(s)).toEqual({ type: 'tableau', pile: 0, index: 1 })
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'tableau', pile: 0, index: 1 } })
   })
 
   it('does NOT hint a pointless lateral move (returns null)', () => {
     const s = emptyState()
     // Red 5 sits on a black 6 with nothing hidden beneath; moving it to an
-    // equivalent black 6 reveals nothing and must not be suggested.
+    // equivalent black 6 reveals nothing and must not be suggested. The board
+    // is not dead either (that lateral move is legal), so this is null, not 'stuck'.
     s.tableau[0] = [card('spades', 6), card('hearts', 5)]
     s.tableau[1] = [card('clubs', 6)]
     expect(findHint(s)).toBeNull()
@@ -287,6 +288,54 @@ describe('findHint', () => {
     const s = emptyState()
     s.waste = [card('hearts', 5)] // red 5
     s.tableau[0] = [card('spades', 6)] // black 6 accepts it
-    expect(findHint(s)).toEqual({ type: 'waste' })
+    expect(findHint(s)).toEqual({ kind: 'move', src: { type: 'waste' } })
+  })
+
+  it("says 'draw' when only a card still in the deck can help", () => {
+    const s = emptyState()
+    // Two black/red 2s that cannot stack on each other — no board move at all.
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    // …but an Ace is still buried in the stock, and an Ace always has a home.
+    s.stock = [card('clubs', 1, false)]
+    expect(findHint(s)).toEqual({ kind: 'draw' })
+  })
+
+  it("says 'draw' when the deck is spent but the waste still holds a playable card", () => {
+    const s = emptyState()
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    // Top of waste (the 9) is unplayable, but recycling brings the Ace back round.
+    s.waste = [card('clubs', 1), card('diamonds', 9)]
+    expect(findHint(s)).toEqual({ kind: 'draw' })
+  })
+
+  it("says 'stuck' when nothing on the board or in the deck can ever help", () => {
+    const s = emptyState()
+    s.tableau[0] = [card('spades', 2)]
+    s.tableau[1] = [card('hearts', 2)]
+    expect(findHint(s)).toEqual({ kind: 'stuck' })
+  })
+
+  it('suggests taking a card back off a foundation when that unblocks another card', () => {
+    const s = emptyState()
+    // Hearts foundation holds A..5, so its top card is the red 5.
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4, 5].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6)] // black 6 — the red 5 can come back here…
+    s.tableau[1] = [card('clubs', 9, false), card('spades', 4)] // …freeing this black 4
+    // Before the pull nothing is productive: the black 4 has no red 5 to sit on.
+    expect(findHint(s)).toEqual({
+      kind: 'move',
+      src: { type: 'foundation', pile: SUITS.indexOf('hearts') }
+    })
+  })
+
+  it('does NOT suggest a foundation pull whose only follow-up is putting the same card back', () => {
+    const s = emptyState()
+    s.foundations[SUITS.indexOf('hearts')] = [1, 2, 3, 4, 5].map((r) => card('hearts', r as Rank))
+    s.tableau[0] = [card('spades', 6)] // the red 5 fits here, but nothing else follows
+    // Pulling 5♥ onto the 6♠ only lets 5♥ go straight back — an infinite loop, not a hint.
+    // The board is not dead (that pull is legal), so this is null rather than 'stuck'.
+    expect(findHint(s)).toBeNull()
   })
 })
