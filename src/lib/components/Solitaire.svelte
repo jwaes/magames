@@ -4,6 +4,7 @@
   import { unlockAudio } from '../sound/sfx'
   import { SUIT_SYMBOL, SUITS, type Card as TCard } from '../engine/cards'
   import { NUM_TABLEAU, canMove, nextAutoFinishMove, type Source, type Dest } from '../engine/solitaire'
+  import { buzzInvalid } from '../feedback/haptics'
   import Card from './Card.svelte'
   import { tick, onDestroy } from 'svelte'
 
@@ -24,6 +25,43 @@
   const reduceMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
   const MOVE_MS = 190
+  const SHAKE_MS = 250
+
+  // A refused move wiggles the card the player tapped — or the deck, when `id`
+  // is null — and buzzes (where the device supports it; not on iOS). Only one
+  // thing shakes at a time.
+  let shakeId = $state<string | null>(null)
+  let shakeDeck = $state(false)
+  let shakeTimer: ReturnType<typeof setTimeout> | null = null
+  let shakeFrame: number | null = null
+  // Bumped per refusal so a frame that ran late — the iPad was locked, say —
+  // can't re-apply a class a newer refusal has already cleared and leave it stuck on.
+  let shakeSeq = 0
+
+  function clearShake() {
+    shakeId = null
+    shakeDeck = false
+  }
+
+  function rejectMove(id: string | null) {
+    buzzInvalid()
+    if (shakeTimer) clearTimeout(shakeTimer)
+    if (shakeFrame !== null) cancelAnimationFrame(shakeFrame)
+    const seq = ++shakeSeq
+    // Drop the class first and re-apply it next frame: a CSS animation only
+    // restarts when the class actually leaves and comes back, so refusing the
+    // same target twice would otherwise be silent the second time.
+    clearShake()
+    shakeFrame = requestAnimationFrame(() => {
+      shakeFrame = null
+      if (seq !== shakeSeq) return
+      if (id === null) shakeDeck = true
+      else shakeId = id
+      shakeTimer = setTimeout(() => {
+        if (seq === shakeSeq) clearShake()
+      }, SHAKE_MS)
+    })
+  }
 
   // ── Tap-to-move glide ────────────────────────────────────────────────
   // A deterministic "fly" overlay: capture the moved card(s) at their source
@@ -66,7 +104,12 @@
     const cards = movedCards(src)
     const from = cards.map((c) => rectOf(c.id))
     game.tap(src)
-    if (reduceMotion || game.moves === before) return // nothing moved (or motion off)
+    if (game.moves === before) {
+      // The move was refused — say so physically, on the card that was tapped.
+      rejectMove(cards[0]?.id ?? null)
+      return
+    }
+    if (reduceMotion) return
 
     await tick()
     const to = cards.map((c) => rectOf(c.id))
@@ -104,6 +147,8 @@
   let unmounted = false
   onDestroy(() => {
     unmounted = true
+    if (shakeTimer) clearTimeout(shakeTimer)
+    if (shakeFrame !== null) cancelAnimationFrame(shakeFrame)
   })
   async function runAutoFinish() {
     if (autoFinishing) return
@@ -135,7 +180,15 @@
     const stockRect = document.querySelector('[data-testid="stock"]')?.getBoundingClientRect()
     const wasteRect = document.querySelector('[data-testid="waste"]')?.getBoundingClientRect()
     const before = game.moves
+    // Refusal is "there is nothing left to turn", NOT "the move counter didn't
+    // change": recycling the waste back into the stock is a legal, useful tap
+    // that deliberately doesn't count as a move, and must not be scolded.
+    const nothingToTurn = game.state.stock.length === 0 && game.state.waste.length === 0
     game.drawStock()
+    if (nothingToTurn) {
+      rejectMove(null)
+      return
+    }
     // moves only increases on a real draw (not on a recycle) — skip the flip then.
     if (reduceMotion || game.moves === before || !stockRect || !wasteRect) return
 
@@ -317,7 +370,10 @@
     }
     const dest = resolveDropFor(d.src, e.clientX - d.grabX, e.clientY - d.grabY, d.cardW, d.cardH)
     if (dest) game.moveTo(d.src, dest)
-    else game.showInvalid()
+    else {
+      game.showInvalid()
+      rejectMove(d.cards[0]?.id ?? null)
+    }
   }
 
   // A cancelled pointer (system gesture / interruption) aborts the drag —
@@ -395,7 +451,7 @@
     </div>
 
     {#snippet stockPile()}
-      <div class="slot pile" data-testid="stock">
+      <div class="slot pile" class:deck-hint={game.hintDeck} class:shake={shakeDeck} data-testid="stock">
         {#if game.state.stock.length}
           <Card card={{ id: 'stock', suit: 'spades', rank: 1, faceUp: false }} onpick={drawDeck} />
         {:else}
@@ -412,6 +468,7 @@
             <Card
               card={top}
               hinted={game.hint?.type === 'waste'}
+              shake={shakeId === top.id}
               onpointerdown={(e) => startPress(e, { type: 'waste' })}
             />
           </div>
@@ -427,7 +484,12 @@
           {#if foundation.length}
             {@const ftop = foundation[foundation.length - 1]}
             <div class="card-holder" data-cid={ftop.id} style:opacity={hiddenIds.has(ftop.id) ? '0' : ''}>
-              <Card card={ftop} onpick={() => !autoFinishing && animatedTap({ type: 'foundation', pile: fi })} />
+              <Card
+                card={ftop}
+                hinted={game.hint?.type === 'foundation' && game.hint.pile === fi}
+                shake={shakeId === ftop.id}
+                onpick={() => !autoFinishing && animatedTap({ type: 'foundation', pile: fi })}
+              />
             </div>
           {:else}
             <div class="empty suit">{SUIT_SYMBOL[SUITS[fi]]}</div>
@@ -460,6 +522,7 @@
               <Card
                 card={placed.card}
                 hinted={hintedTableau(pile, placed.index)}
+                shake={shakeId === placed.card.id}
                 onpointerdown={placed.card.faceUp
                   ? (e) => startPress(e, { type: 'tableau', pile, index: placed.index })
                   : undefined}
@@ -642,6 +705,57 @@
   }
   .gap {
     width: var(--card-w);
+  }
+  /* "Turn the deck" hint, and the deck's own refusal shake. Same treatment as a
+     card so the two feedback languages match. */
+  .slot.deck-hint {
+    animation: deckpulse 0.8s ease-in-out infinite;
+    border-radius: calc(var(--card-w) * 0.09);
+  }
+  @keyframes deckpulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 214, 10, 0);
+    }
+    50% {
+      box-shadow: 0 0 0 calc(var(--card-w) * 0.08) rgba(255, 214, 10, 0.8);
+    }
+  }
+  .slot.shake {
+    animation: wiggle 0.25s ease-in-out;
+  }
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    15% {
+      transform: translateX(-5%);
+    }
+    35% {
+      transform: translateX(5%);
+    }
+    55% {
+      transform: translateX(-3.5%);
+    }
+    75% {
+      transform: translateX(2%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .slot.deck-hint,
+    .slot.shake {
+      animation: none;
+    }
+    .slot.deck-hint {
+      box-shadow: 0 0 0 calc(var(--card-w) * 0.06) rgba(255, 214, 10, 0.9);
+    }
+    /* Must have a substitute, like the card does. Otherwise a refused deck tap
+       is completely silent here: no wiggle, no buzz (iOS has no vibrate), and
+       nothing at all if the sound is off. */
+    .slot.shake {
+      box-shadow: 0 0 0 calc(var(--card-w) * 0.06) rgba(190, 30, 30, 0.8);
+    }
   }
   .stacked {
     position: absolute;

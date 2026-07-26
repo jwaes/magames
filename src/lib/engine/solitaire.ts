@@ -280,17 +280,28 @@ function allSources(state: GameState): Source[] {
   return out
 }
 
+/** Where a hint points, and why. `null` means only pointless shuffles remain. */
+export type Hint =
+  | { kind: 'move'; src: Source }
+  /** No board move helps, but a card still in the stock/waste is playable — turn the deck. */
+  | { kind: 'draw' }
+  /** `isStuck` agrees: nothing can ever help. */
+  | { kind: 'stuck' }
+
 /**
- * Suggest a genuinely *useful* move, or null if only pointless shuffles remain.
- * A move earns a hint only if it makes progress, in priority order:
+ * A source whose move makes real progress, in priority order:
  *   1. onto a foundation,
  *   2. a waste card onto the tableau (uses a drawn card),
  *   3. a tableau move that uncovers a face-down card.
  * Lateral moves — e.g. shifting a red 5 from one black 6 to an equivalent black
- * 6, revealing nothing — are deliberately never hinted.
+ * 6, revealing nothing — never count. `exceptCardId` ignores one specific card,
+ * which is how the foundation-pull search avoids recommending a loop.
  */
-export function findHint(state: GameState): Source | null {
-  const sources = allSources(state)
+function productiveSource(state: GameState, exceptCardId?: string): Source | null {
+  const sources = allSources(state).filter((src) => {
+    if (exceptCardId === undefined) return true
+    return pickup(state, src)[0]?.id !== exceptCardId
+  })
 
   for (const src of sources) {
     if (autoDest(state, src)?.type === 'foundation') return src
@@ -302,6 +313,67 @@ export function findHint(state: GameState): Source | null {
     if (src.type === 'tableau' && uncoversCard(state, src) && autoDest(state, src)) return src
   }
   return null
+}
+
+/**
+ * Suggest the next genuinely useful action — and when there isn't one, say why.
+ * A bare `null` used to mean three different things (draw a card / the game is
+ * dead / only shuffles remain), which left the UI unable to do more than buzz.
+ */
+export function findHint(state: GameState): Hint | null {
+  const productive = productiveSource(state)
+  if (productive) return { kind: 'move', src: productive }
+
+  // Nothing on the board helps — would turning the deck bring up something playable?
+  if (drawCanHelp(state)) return { kind: 'draw' }
+
+  // Last resort: take a card back off a foundation, but only when it unblocks a
+  // DIFFERENT card. Without that guard the "unblocking" move found is putting the
+  // same card straight back, and the hint would suggest an infinite loop.
+  for (let f = 0; f < state.foundations.length; f++) {
+    const pile = state.foundations[f]
+    if (pile.length === 0) continue
+    const src: Source = { type: 'foundation', pile: f }
+    const pulledId = pile[pile.length - 1].id
+    // Test the destination a tap would actually pick, not just any legal column,
+    // so the move the player makes is the one that was validated as unblocking.
+    const dest = autoDest(state, src)
+    if (!dest) continue
+    const next = move(state, src, dest)
+    if (next && productiveSource(next, pulledId)) return { kind: 'move', src }
+  }
+
+  if (isStuck(state)) return { kind: 'stuck' }
+  return null
+}
+
+/**
+ * Could turning the deck ever surface a playable card?
+ *
+ * Not the same question as "is any card in the deck playable". Recycling
+ * preserves order (`draw` reverses the waste back into the stock), so on a board
+ * that cannot otherwise change, the waste tops cycle through a FIXED subset —
+ * with draw-3 that is only about a third of the deck, and the rest can never be
+ * reached. Simulating one full cycle and testing only the tops the player can
+ * actually get to is what keeps "turn the deck" from becoming an endless lie.
+ *
+ * Placement is tested against the original board, which is exactly the
+ * assumption that makes the cycle fixed: nothing else moves while drawing.
+ */
+function drawCanHelp(state: GameState): boolean {
+  const deckSize = state.stock.length + state.waste.length
+  let s = state
+  // deckSize + 1 turns is exactly enough, not generously so: the draw-1 worst
+  // case needs every stock card surfaced, then a recycle, then every card that
+  // started in the waste — so the final iteration is load-bearing. Don't trim it.
+  for (let i = 0; i <= deckSize; i++) {
+    const next = draw(s)
+    if (!next) return false
+    s = next
+    const top = s.waste[s.waste.length - 1]
+    if (top && placeableAnywhere(state, top)) return true
+  }
+  return false
 }
 
 /** Can this single card be placed anywhere right now (foundation or tableau)? */
@@ -341,9 +413,7 @@ export function isStuck(state: GameState): boolean {
     }
   }
 
-  for (const c of [...state.stock, ...state.waste]) {
-    if (placeableAnywhere(state, c)) return false
-  }
+  if (drawCanHelp(state)) return false
 
   for (let f = 0; f < state.foundations.length; f++) {
     if (state.foundations[f].length === 0) continue
