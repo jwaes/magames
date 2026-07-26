@@ -123,8 +123,9 @@
   }
 
   // ── Deck-draw deal & flip ────────────────────────────────────────────
-  // A card comes off the deck (face-down, left), travels to the waste (right)
-  // and flips over to reveal its face as it lands — like dealing a card.
+  // A card comes off the deck (face-down), travels to the waste and flips over
+  // to reveal its face as it lands — like dealing a card. Both ends are measured
+  // live, so it deals the right way round whichever side the deck is on.
   const DRAW_MS = 260
   let drawAnim = $state<{ card: TCard; fromX: number; fromY: number; toX: number; toY: number; go: boolean } | null>(
     null
@@ -377,13 +378,14 @@
   <!-- Board -->
   <main class="board" data-testid="board">
     <!-- Top row. The draw deck (stock+waste) and the foundations can swap sides
-         via the "Indeling" setting; the middle gap stays put. -->
+         via the "Indeling" setting; the middle gap stays put. Swapping mirrors
+         the deck pair too, so the deck you tap always sits on the outer edge. -->
     <div class="top-row">
       {#if settings.stockRight}
         {@render foundationPiles()}
         <div class="gap"></div>
-        {@render stockPile()}
         {@render wastePile()}
+        {@render stockPile()}
       {:else}
         {@render stockPile()}
         {@render wastePile()}

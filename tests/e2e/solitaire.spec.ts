@@ -128,17 +128,22 @@ test('settings: swapping the layout moves the deck to the right', async ({ page 
   await page.goto('/?seed=1')
   await page.getByRole('button', { name: /Patience/ }).click()
   const stock = page.getByTestId('stock')
+  const waste = page.getByTestId('waste')
   const foundation = page.locator('[data-drop-foundation="0"]')
 
-  // By default the deck (stock) sits left of the foundations.
+  // By default the deck (stock) sits left of the foundations, with the waste
+  // just inside it — so the deck is on the outer (left) edge of the row.
   expect((await stock.boundingBox())!.x).toBeLessThan((await foundation.boundingBox())!.x)
+  expect((await stock.boundingBox())!.x).toBeLessThan((await waste.boundingBox())!.x)
 
   await page.getByRole('button', { name: 'Instellingen' }).click()
   await page.getByRole('button', { name: /Stapel rechts/ }).click()
   await page.getByRole('button', { name: 'Klaar' }).click()
 
-  // After swapping, the deck is right of the foundations.
+  // After swapping, the pair mirrors: the deck is right of the foundations AND
+  // right of the waste, so it sits on the outer (right) edge of the row.
   expect((await stock.boundingBox())!.x).toBeGreaterThan((await foundation.boundingBox())!.x)
+  expect((await stock.boundingBox())!.x).toBeGreaterThan((await waste.boundingBox())!.x)
 })
 
 test('settings: choosing a number font changes the rank typeface', async ({ page }) => {
