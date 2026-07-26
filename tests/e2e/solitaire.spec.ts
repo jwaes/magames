@@ -192,3 +192,66 @@ test('drag mode: the dragged card is hidden in its pile (no visible duplicate)',
   // After dropping, nothing stays hidden.
   await expect(page.locator('.ghost')).toHaveCount(0)
 })
+
+test('tapping a card with nowhere to go wiggles it instead of silently doing nothing', async ({
+  page
+}) => {
+  // Seed 1 deals the queen of diamonds alone in column 1. There is no black king
+  // and no empty column, so she has no legal destination — a guaranteed refusal.
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+
+  // Count wiggle animations rather than racing the 250ms class. Svelte PREFIXES
+  // the component scope hash onto keyframe names (svelte-1udyrqm-wiggle), so this
+  // has to be a substring match, not a prefix one.
+  await page.evaluate(() => {
+    ;(window as unknown as { __wiggles: number }).__wiggles = 0
+    document.addEventListener(
+      'animationstart',
+      (e) => {
+        if ((e as AnimationEvent).animationName.includes('wiggle')) {
+          ;(window as unknown as { __wiggles: number }).__wiggles++
+        }
+      },
+      true
+    )
+  })
+
+  await page.getByRole('button', { name: 'Q diamonds' }).click()
+
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __wiggles: number }).__wiggles))
+    .toBe(1)
+  // …and the refusal really was a refusal: no move was counted.
+  await expect(page.locator('.stat', { hasText: 'Zetten' }).locator('strong')).toHaveText('0')
+})
+
+test('Hint points at the deck when drawing is the useful move', async ({ page }) => {
+  await page.goto('/?seed=1')
+  await page.getByRole('button', { name: /Patience/ }).click()
+
+  const stock = page.getByTestId('stock')
+  const moves = page.locator('.stat', { hasText: 'Zetten' }).locator('strong')
+  await expect(stock).not.toHaveClass(/deck-hint/)
+
+  // Keep asking for a hint, taking the suggested board move each time, until the
+  // only useful thing left is to turn the deck. Bounded so a regression fails
+  // fast instead of hanging.
+  let pulsed = false
+  for (let i = 0; i < 12 && !pulsed; i++) {
+    await page.getByRole('button', { name: 'Hint' }).click()
+    if (await stock.evaluate((el) => el.classList.contains('deck-hint'))) {
+      pulsed = true
+      break
+    }
+    const hintedCard = page.locator('.card.hinted').first()
+    if ((await hintedCard.count()) === 0) break
+    const before = await moves.textContent()
+    await hintedCard.click()
+    // Wait on real state, not a sleep: the move must land, and the glide overlay
+    // must be gone before the next hint is asked for.
+    await expect(moves).not.toHaveText(before ?? '')
+    await expect(page.locator('.fly-card')).toHaveCount(0)
+  }
+  expect(pulsed).toBe(true)
+})
