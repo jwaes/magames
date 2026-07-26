@@ -522,7 +522,7 @@ Depends on Tasks 1-3.
 
 **Interfaces:**
 - Consumes: `buzzInvalid()` from Task 2; `game.hintDeck` from Task 3.
-- Produces: a `shake?: boolean` prop on `Card.svelte`; CSS classes `.shake` (Card) and `.slot.deck-hint` / `.slot.shake` (Solitaire). The wiggle keyframes must be **named `wiggle`** in both components — the E2E test in Task 5 matches on `animationName.startsWith('wiggle')` (Svelte suffixes scoped keyframe names).
+- Produces: a `shake?: boolean` prop on `Card.svelte`; CSS classes `.shake` (Card) and `.slot.deck-hint` / `.slot.shake` (Solitaire). The wiggle keyframes must be **named `wiggle`** in both components — the E2E test in Task 5 matches on the animation name. Note Svelte **prefixes** the scope hash (`svelte-1udyrqm-wiggle`), it does not suffix it, so that match must be `.includes('wiggle')`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -854,14 +854,15 @@ test('tapping a card with nowhere to go wiggles it instead of silently doing not
   await page.goto('/?seed=1')
   await page.getByRole('button', { name: /Patience/ }).click()
 
-  // Count wiggle animations rather than racing the 250ms class: Svelte suffixes
-  // scoped keyframe names, hence the prefix match.
+  // Count wiggle animations rather than racing the 250ms class. Svelte PREFIXES
+  // the component scope hash onto keyframe names (svelte-1udyrqm-wiggle), so this
+  // has to be a substring match, not a prefix one.
   await page.evaluate(() => {
     ;(window as unknown as { __wiggles: number }).__wiggles = 0
     document.addEventListener(
       'animationstart',
       (e) => {
-        if ((e as AnimationEvent).animationName.startsWith('wiggle')) {
+        if ((e as AnimationEvent).animationName.includes('wiggle')) {
           ;(window as unknown as { __wiggles: number }).__wiggles++
         }
       },
